@@ -1,0 +1,71 @@
+# Packages the browser extension (zeroscript-extension/) as a standalone,
+# versioned zip and attaches it to the GitHub Release, so users can grab the
+# extension without downloading the whole repository.
+#
+# Triggered automatically when a release is published (created by the manual
+# "Create Release" workflow) or manually from the Actions tab.
+name: Package Browser Extension
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p "require('./zeroscript-extension/manifest.json').version")
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Package extension zip
+        run: |
+          VER="${{ steps.version.outputs.version }}"
+          STAGE="ZeroScript-extension-${VER}"
+          rm -rf "$STAGE"
+          cp -r zeroscript-extension "$STAGE"
+          # Dev-only parser test, not needed by end users.
+          rm -f "$STAGE/test-parser.js"
+          printf '%s\n' \
+            "ZeroScript Browser Extension v${VER}" \
+            "====================================" \
+            "" \
+            "Install:" \
+            "  1. Extract this zip." \
+            "  2. Open chrome://extensions (or edge://extensions)." \
+            "  3. Enable 'Developer mode' (top right)." \
+            "  4. Click 'Load unpacked' and select the '${STAGE}' folder." \
+            "  5. Open a supported AI chat site and press 'Start Roblox Agent'." \
+            "" \
+            "Requires the ZeroScript Bridge to be running (desktop app or bridge.py)." \
+            > README.txt
+          zip -r "${STAGE}.zip" "$STAGE" README.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeroscript-extension
+          path: ZeroScript-extension-*.zip
+          if-no-files-found: error
+
+      - name: Attach to release
+        # release.yml already attaches the zip the moment the release is
+        # created; --clobber makes this idempotent (e.g. for releases created
+        # through the GitHub UI instead of the Create Release workflow).
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" ZeroScript-extension-*.zip --clobber

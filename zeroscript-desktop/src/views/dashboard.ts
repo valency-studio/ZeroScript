@@ -2,9 +2,11 @@
 import { listen } from "@tauri-apps/api/event";
 import { BridgeClient, Snapshot } from "../bridge-ws";
 import { bridgeRunning, restartBridge, startBridge, stopBridge } from "../tauri";
+import { toast } from "../ui";
 
 let root: HTMLElement;
 let running = false;
+let busy: "start" | "restart" | null = null;
 let snapshot: Snapshot;
 
 function dotClass(s: Snapshot): string {
@@ -25,11 +27,75 @@ function stateText(s: Snapshot): string {
   return "Bridge OK · open Roblox Studio";
 }
 
+function mcpOkOf(s: Snapshot): boolean {
+  const up = s.servers.filter((x) => x.alive).length;
+  return s.mcpAlive || up > 0 || s.tools > 0;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+function btnSpinner(label: string): string {
+  return `<span class="spinner"></span>${label}…`;
+}
+
+/**
+ * Getting-started guidance. Only rendered while something is NOT ready - once
+ * the bridge + Studio are fully connected the card disappears.
+ */
+function quickStartCard(s: Snapshot): string {
+  const mcpOk = mcpOkOf(s);
+  const studioReady = mcpOk && s.studio === true;
+  if (s.connected && mcpOk && studioReady) return "";
+
+  const steps = [
+    {
+      t: "Start the bridge",
+      d: s.connected
+        ? "The bridge is running."
+        : "Click Start Bridge above, or enable auto-start in Settings.",
+      done: s.connected,
+    },
+    {
+      t: "Connect Roblox Studio",
+      d: mcpOk
+        ? "The MCP server is alive."
+        : "Open a place, then Assistant Settings → MCP Servers → enable \u201CStudio as MCP server\u201D.",
+      done: mcpOk,
+    },
+    {
+      t: "Open an AI chat site",
+      d: "Load the browser extension, then press Start Roblox Agent on ChatGPT, DeepSeek, Claude…",
+      done: studioReady,
+    },
+  ];
+
+  return `
+    <div class="card quickstart">
+      <h3 class="card-title">Quick start</h3>
+      <ol class="qs-list">
+        ${steps
+          .map(
+            (st) => `
+          <li class="${st.done ? "qs-done" : "qs-next"}">
+            <span class="qs-num">${st.done ? "✓" : '<span class="qs-dot"></span>'}</span>
+            <div>
+              <b>${escapeHtml(st.t)}</b>
+              <span class="muted">${escapeHtml(st.d)}</span>
+            </div>
+          </li>`,
+          )
+          .join("")}
+      </ol>
+    </div>`;
+}
+
 function render(): void {
   if (!root) return;
   const s = snapshot;
   const up = s.servers.filter((x) => x.alive).length;
-  const mcpOk = s.mcpAlive || up > 0 || s.tools > 0;
+  const mcpOk = mcpOkOf(s);
 
   const serverCards = s.servers
     .map(
@@ -53,12 +119,18 @@ function render(): void {
           ${s.connected ? `${s.tools} tools · ${up}/${s.servers.length} servers up` : "not connected"}
         </div>
         <div class="hero-actions">
-          <button id="btnStart" class="btn primary" ${running ? "disabled" : ""}>Start Bridge</button>
-          <button id="btnStop" class="btn ghost" ${running ? "" : "disabled"}>Stop Bridge</button>
-          <button id="btnRestart" class="btn ghost" ${running ? "" : "disabled"}>Restart</button>
+          <button id="btnStart" class="btn primary" ${running && !busy ? "" : "disabled"}>
+            ${busy === "start" ? btnSpinner("Starting") : "Start Bridge"}
+          </button>
+          <button id="btnStop" class="btn ghost" ${running && !busy ? "" : "disabled"}>Stop Bridge</button>
+          <button id="btnRestart" class="btn ghost" ${running && !busy ? "" : "disabled"}>
+            ${busy === "restart" ? btnSpinner("Restarting") : "Restart"}
+          </button>
         </div>
       </div>
     </div>
+
+    ${quickStartCard(s)}
 
     <div class="grid-2">
       <div class="card">
@@ -85,19 +157,29 @@ function render(): void {
 
   const btn = (id: string) => root.querySelector<HTMLButtonElement>(id)!;
   btn("#btnStart").addEventListener("click", () => {
-    btn("#btnStart").disabled = true;
+    busy = "start";
+    render();
     startBridge()
-      .catch((e) => pushToast(`Could not start bridge: ${e}`));
+      .catch((e) => toast(`Could not start bridge: ${e}`, "err"))
+      .finally(() => {
+        busy = null;
+        refreshRunning();
+      });
   });
   btn("#btnStop").addEventListener("click", async () => {
     await stopBridge().catch(() => undefined);
     running = false;
     render();
   });
-  btn("#btnRestart").addEventListener("click", async () => {
-    btn("#btnRestart").disabled = true;
-    await restartBridge().catch(() => undefined);
-    setTimeout(refreshRunning, 800);
+  btn("#btnRestart").addEventListener("click", () => {
+    busy = "restart";
+    render();
+    restartBridge()
+      .catch((e) => toast(`Could not restart bridge: ${e}`, "err"))
+      .finally(() => {
+        busy = null;
+        setTimeout(refreshRunning, 800);
+      });
   });
 }
 
@@ -108,18 +190,6 @@ async function refreshRunning(): Promise<void> {
     running = false;
   }
   render();
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}
-
-function pushToast(msg: string): void {
-  const t = document.createElement("div");
-  t.className = "toast";
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 4000);
 }
 
 export function initDashboard(el: HTMLElement, client: BridgeClient): void {
@@ -134,6 +204,7 @@ export function initDashboard(el: HTMLElement, client: BridgeClient): void {
   // Bridge card and buttons contradicting the offline hero).
   listen("bridge-exit", () => {
     running = false;
+    busy = null;
     render();
   }).catch(() => undefined);
   refreshRunning();

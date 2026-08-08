@@ -42,6 +42,45 @@ fn data_dir(app: &AppHandle) -> PathBuf {
         .unwrap_or_else(|_| std::env::temp_dir())
 }
 
+/// Per-app GUI settings persisted as JSON next to config.json. Small and
+/// dependency-free on purpose (no store plugin): a single struct the Settings
+/// view reads and writes.
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+#[serde(default)]
+struct DesktopSettings {
+    start_bridge_on_launch: bool,
+}
+
+fn settings_path(app: &AppHandle) -> PathBuf {
+    data_dir(app).join("desktop-settings.json")
+}
+
+fn read_settings(app: &AppHandle) -> DesktopSettings {
+    std::fs::read_to_string(settings_path(app))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn write_settings(app: &AppHandle, s: &DesktopSettings) -> Result<(), String> {
+    let dir = data_dir(app);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(s).map_err(|e| e.to_string())?;
+    std::fs::write(settings_path(app), json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_settings(app: AppHandle) -> DesktopSettings {
+    read_settings(&app)
+}
+
+#[tauri::command]
+fn set_start_bridge_on_launch(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut s = read_settings(&app);
+    s.start_bridge_on_launch = enabled;
+    write_settings(&app, &s)
+}
+
 /// Spawn the bridge sidecar (hidden, no console window) and start streaming
 /// its output to the frontend. No-op if it is already running.
 fn spawn_bridge(app: &AppHandle) -> Result<(), String> {
@@ -142,6 +181,7 @@ fn open_data_dir(app: AppHandle) -> Result<(), String> {
 struct AppInfo {
     version: String,
     os: String,
+    arch: String,
 }
 
 #[tauri::command]
@@ -149,6 +189,7 @@ fn get_app_info(app: AppHandle) -> AppInfo {
     AppInfo {
         version: app.package_info().version.to_string(),
         os: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
     }
 }
 
@@ -156,6 +197,19 @@ fn get_app_info(app: AppHandle) -> AppInfo {
 /// GitHub, support links).
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
+    // The URL is handed to `cmd /c start` unquoted on Windows, where & | ^ < >
+    // are command metacharacters. Only http(s) URLs are ever opened by this
+    // app (repo, releases, issues, support), so reject anything that could be
+    // interpreted by the shell.
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("unsafe URL".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if url.chars().any(|c| matches!(c, '&' | '|' | '^' | '<' | '>' | '"')) {
+            return Err("unsafe URL".into());
+        }
+    }
     #[cfg(target_os = "windows")]
     let res = std::process::Command::new("cmd")
         .args(["/c", "start", "", &url])
@@ -244,9 +298,17 @@ pub fn run() {
             open_data_dir,
             get_app_info,
             open_url,
+            get_settings,
+            set_start_bridge_on_launch,
         ])
         .setup(|app| {
             setup_tray(app.handle())?;
+            // Start the bridge automatically if the user enabled it in
+            // Settings - otherwise the app opens to an offline dashboard and
+            // the user has to click Start every time.
+            if read_settings(app.handle()).start_bridge_on_launch {
+                let _ = spawn_bridge(app.handle());
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

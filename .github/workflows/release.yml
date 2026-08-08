@@ -42,6 +42,29 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 
+      - name: Package extension zip
+        run: |
+          VER="${{ steps.version.outputs.version }}"
+          STAGE="ZeroScript-extension-${VER}"
+          rm -rf "$STAGE"
+          cp -r zeroscript-extension "$STAGE"
+          # Dev-only parser test, not needed by end users.
+          rm -f "$STAGE/test-parser.js"
+          printf '%s\n' \
+            "ZeroScript Browser Extension v${VER}" \
+            "====================================" \
+            "" \
+            "Install:" \
+            "  1. Extract this zip." \
+            "  2. Open chrome://extensions (or edge://extensions)." \
+            "  3. Enable 'Developer mode' (top right)." \
+            "  4. Click 'Load unpacked' and select the '${STAGE}' folder." \
+            "  5. Open a supported AI chat site and press 'Start Roblox Agent'." \
+            "" \
+            "Requires the ZeroScript Bridge to be running (desktop app or bridge.py)." \
+            > README.txt
+          zip -r "${STAGE}.zip" "$STAGE" README.txt
+
       - name: Extract changelog section as release notes
         id: notes
         run: |
@@ -74,7 +97,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The extension zip needs no build, so it is attached immediately -
+          # desktop bundles follow from the build workflows (Build Desktop GUI,
+          # Build Desktop Packages) and land on the release a few minutes later.
           gh release create "${{ steps.version.outputs.tag }}" \
+            "ZeroScript-extension-${{ steps.version.outputs.version }}.zip" \
             --title "ZeroScript v${{ steps.version.outputs.version }}" \
             --notes-file /tmp/release-notes.md \
             ${{ inputs.draft == true && '--draft' || '' }} \

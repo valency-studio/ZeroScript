@@ -4,6 +4,11 @@ import { invoke } from "@tauri-apps/api/core";
 export interface AppInfo {
   version: string;
   os: string;
+  arch: string;
+}
+
+export interface DesktopSettings {
+  start_bridge_on_launch: boolean;
 }
 
 export const startBridge = (): Promise<void> => invoke("start_bridge");
@@ -14,3 +19,6 @@ export const getDataDir = (): Promise<string> => invoke("get_data_dir");
 export const openDataDir = (): Promise<void> => invoke("open_data_dir");
 export const getAppInfo = (): Promise<AppInfo> => invoke("get_app_info");
 export const openUrl = (url: string): Promise<void> => invoke("open_url", { url });
+export const getSettings = (): Promise<DesktopSettings> => invoke("get_settings");
+export const setStartBridgeOnLaunch = (enabled: boolean): Promise<void> =>
+  invoke("set_start_bridge_on_launch", { enabled });

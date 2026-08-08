@@ -31,6 +31,7 @@ Grep for "Keep in sync" — the codebase flags other mirrored lists the same way
 ## Desktop packaging
 
 - `packaging/build.py` builds the desktop packages (Windows NSIS, macOS DMG, Linux AppImage) with PyInstaller so end users need no Python/Node.js. It runs per-OS in `.github/workflows/build-desktop.yml`, triggered when a release is published; artifacts land in `dist/packages/`. Build deps: `packaging/requirements.txt`.
+- A published release is populated by **three parallel workflows**: `build-desktop-gui.yml` (Tauri GUI bundles), `build-desktop.yml` (PyInstaller packages, extension embedded via `copy_extension`), and `build-extension.yml` (standalone `ZeroScript-extension-<ver>.zip` + README).
 - bridge.py is **frozen-aware**: `config.json` + `logs/` live next to the executable (`~/.zeroscript` on Linux AppImage, which is a read-only mount), a bare `.py` command in config.json maps to the bundled sibling executable (`_sibling_exe`), `restart_self()` and `_reclaim_bridge_port()` handle the packaged executable, and macOS windowed builds get devnull std streams.
 - If a configured Roblox MCP server needs Node.js (`npx/npm/node` in its command) and none is installed, the bridge prints an ACTION NEEDED banner and falls back to Roblox Studio's built-in StudioMCP via `launch_studio_mcp` (`_needs_node_fallback` / `_apply_node_fallback`, once per process).
 - Keep `BRIDGE_VERSION`, `manifest.json` "version", and `CHANGELOG.md` in sync when packaging; the build workflow passes the release tag as `--version`.

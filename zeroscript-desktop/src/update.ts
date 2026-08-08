@@ -18,6 +18,9 @@ export interface UpdateInfo {
   available: boolean;
   url: string;
   error: string | null;
+  name: string; // release title, e.g. "ZeroScript 1.0.0"
+  publishedAt: string | null; // ISO date of the release
+  body: string | null; // release notes (GitHub markdown)
 }
 
 export function parseVer(v: string): number[] {
@@ -50,6 +53,9 @@ class UpdateService {
     available: false,
     url: GITHUB_RELEASES_PAGE,
     error: null,
+    name: "",
+    publishedAt: null,
+    body: null,
   };
   private listeners = new Set<Listener>();
   private inFlight: Promise<UpdateInfo> | null = null;
@@ -91,6 +97,9 @@ class UpdateService {
         this.info.latest = tag || null;
         this.info.url = data.html_url || GITHUB_RELEASES_PAGE;
         this.info.available = !!(tag && cmpVer(tag, this.info.current) > 0);
+        this.info.name = String(data.name || "") || tag;
+        this.info.publishedAt = typeof data.published_at === "string" ? data.published_at : null;
+        this.info.body = typeof data.body === "string" && data.body ? data.body : null;
         this.info.error = null;
       } catch (e) {
         this.info.error = String((e as Error).message || e);

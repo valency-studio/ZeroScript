@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { Ack, BridgeClient, Snapshot } from "../bridge-ws";
+import { confirmDialog, toast } from "../ui";
 
 let root: HTMLElement;
 let client: BridgeClient;
@@ -11,14 +12,6 @@ let lastSig = "";
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}
-
-function toast(msg: string, ok: boolean): void {
-  const t = document.createElement("div");
-  t.className = `toast ${ok ? "ok" : ""}`;
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 4000);
 }
 
 function render(): void {
@@ -51,7 +44,7 @@ function render(): void {
 
     <div class="card">
       <h3 class="card-title">Add MCP server</h3>
-      <form id="addForm" class="form">
+      <form id="addForm" class="form" novalidate>
         <div class="form-grid">
           <label>Server ID
             <input id="fId" placeholder="e.g. blender" required />
@@ -63,6 +56,7 @@ function render(): void {
         <label>Arguments <span class="muted">(one per line)</span>
           <textarea id="fArgs" rows="3" placeholder="--port=3100"></textarea>
         </label>
+        <p id="addError" class="form-error" hidden></p>
         <div class="form-actions">
           <button type="submit" class="btn primary">Add server</button>
           <span class="muted note">Saving restarts the bridge automatically.</span>
@@ -75,31 +69,45 @@ function render(): void {
     b.addEventListener("click", async () => {
       b.disabled = true;
       const ack: Ack = await client.restartMcp(b.dataset.id).catch(() => ({ ok: false, error: "bridge offline" }));
-      toast(ack.ok ? `Restarted ${b.dataset.id}` : `Restart failed: ${ack.error}`, ack.ok);
+      toast(ack.ok ? `Restarted ${b.dataset.id}` : `Restart failed: ${ack.error}`, ack.ok ? "ok" : "err");
       b.disabled = false;
     });
   });
 
   root.querySelectorAll<HTMLButtonElement>(".js-remove").forEach((b) => {
     b.addEventListener("click", async () => {
-      if (!confirm(`Remove MCP server "${b.dataset.id}"?`)) return;
+      const id = b.dataset.id || "";
+      const ok = await confirmDialog({
+        title: `Remove "${id}"?`,
+        message:
+          "This removes the server from config.json and restarts the bridge. The primary Roblox server is never affected.",
+        confirmLabel: "Remove",
+        danger: true,
+      });
+      if (!ok) return;
       b.disabled = true;
-      const ack: Ack = await client.removeServer(b.dataset.id!).catch(() => ({ ok: false, error: "bridge offline" }));
-      toast(ack.ok ? `Removed ${b.dataset.id} — bridge restarting` : `Remove failed: ${ack.error}`, ack.ok);
+      const ack: Ack = await client.removeServer(id).catch(() => ({ ok: false, error: "bridge offline" }));
+      toast(ack.ok ? `Removed ${id} — bridge restarting` : `Remove failed: ${ack.error}`, ack.ok ? "ok" : "err");
     });
   });
 
   root.querySelector<HTMLFormElement>("#addForm")!.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const errEl = root.querySelector<HTMLParagraphElement>("#addError")!;
     const id = (root.querySelector<HTMLInputElement>("#fId")!.value || "").trim();
     const cmd = (root.querySelector<HTMLInputElement>("#fCmd")!.value || "").trim();
     const args = (root.querySelector<HTMLTextAreaElement>("#fArgs")!.value || "")
       .split("\n")
       .map((x) => x.trim())
       .filter(Boolean);
-    if (!id || !cmd) return;
+    if (!id || !cmd) {
+      errEl.textContent = "Server ID and Command are both required.";
+      errEl.hidden = false;
+      return;
+    }
+    errEl.hidden = true;
     const ack: Ack = await client.addServer(id, cmd, args).catch(() => ({ ok: false, error: "bridge offline" }));
-    toast(ack.ok ? `Added ${id} — bridge restarting` : `Add failed: ${ack.error}`, ack.ok);
+    toast(ack.ok ? `Added ${id} — bridge restarting` : `Add failed: ${ack.error}`, ack.ok ? "ok" : "err");
     if (ack.ok) {
       root.querySelector<HTMLFormElement>("#addForm")!.reset();
     }

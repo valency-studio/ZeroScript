@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { isEnabled, enable, disable } from "@tauri-apps/plugin-autostart";
 import { BridgeClient, Snapshot } from "../bridge-ws";
-import { getAppInfo, getDataDir, openDataDir } from "../tauri";
+import { getAppInfo, getDataDir, getSettings, openDataDir, setStartBridgeOnLaunch } from "../tauri";
+import { toast } from "../ui";
 
 let root: HTMLElement;
 
@@ -12,6 +13,7 @@ function escapeHtml(s: string): string {
 export function initSettings(el: HTMLElement, client: BridgeClient): void {
   root = el;
   let autostart = false;
+  let startOnLaunch = false;
   let dir = "";
   let info = { version: "—", os: "" };
   let port = 17613;
@@ -38,6 +40,12 @@ export function initSettings(el: HTMLElement, client: BridgeClient): void {
       render();
     })
     .catch(() => undefined);
+  getSettings()
+    .then((s) => {
+      startOnLaunch = s.start_bridge_on_launch;
+      render();
+    })
+    .catch(() => undefined);
 
   function render(): void {
     if (!root) return;
@@ -55,7 +63,17 @@ export function initSettings(el: HTMLElement, client: BridgeClient): void {
         <h3 class="card-title">Startup</h3>
         <div class="toggle-row">
           <div>
-            <div class="toggle-label">Start ZeroScript with Windows login</div>
+            <div class="toggle-label">Start the bridge when ZeroScript opens</div>
+            <div class="muted">No manual Start click needed — the bridge boots in the background.</div>
+          </div>
+          <label class="switch">
+            <input id="startOnLaunchToggle" type="checkbox" ${startOnLaunch ? "checked" : ""} />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Start ZeroScript with login</div>
             <div class="muted">Uses the OS autostart mechanism for this user.</div>
           </div>
           <label class="switch">
@@ -80,6 +98,15 @@ export function initSettings(el: HTMLElement, client: BridgeClient): void {
 
     root.querySelector<HTMLButtonElement>("#btnOpenDir")!.addEventListener("click", () => {
       openDataDir().catch(() => undefined);
+    });
+    root.querySelector<HTMLInputElement>("#startOnLaunchToggle")!.addEventListener("change", (e) => {
+      const on = (e.target as HTMLInputElement).checked;
+      startOnLaunch = on; // keep the closure var in sync so re-renders keep the state
+      setStartBridgeOnLaunch(on).catch(() => {
+        startOnLaunch = !on;
+        toast("Could not save the setting", "err");
+        render();
+      });
     });
     root.querySelector<HTMLInputElement>("#autostartToggle")!.addEventListener("change", (e) => {
       const on = (e.target as HTMLInputElement).checked;

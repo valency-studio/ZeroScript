@@ -2,6 +2,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { BridgeClient } from "./bridge-ws";
 import { getAppInfo } from "./tauri";
+import { toast } from "./ui";
 import { UPDATE_CHECK_MS, updates } from "./update";
 import { initAbout } from "./views/about";
 import { initDashboard } from "./views/dashboard";
@@ -25,6 +26,18 @@ navButtons.forEach((b) => {
   b.addEventListener("click", () => showView(b.dataset.view!));
 });
 
+// Keyboard navigation: Ctrl/Cmd+1..5 jumps between views.
+const VIEW_ORDER = ["dashboard", "logs", "servers", "settings", "about"];
+window.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key >= "1" && e.key <= "5") {
+    const view = VIEW_ORDER[Number(e.key) - 1];
+    if (view) {
+      e.preventDefault();
+      showView(view);
+    }
+  }
+});
+
 // ── bootstrap views ────────────────────────────────────────────────────────
 initDashboard(document.getElementById("dashRoot")!, client);
 initLogs(document.getElementById("logs")!);
@@ -41,14 +54,6 @@ listen<number>("bridge-exit", () => {
   client.forceOffline();
   toast("Bridge stopped");
 }).catch(() => undefined);
-
-function toast(msg: string): void {
-  const t = document.createElement("div");
-  t.className = "toast";
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3500);
-}
 
 // ── sidebar mini status ────────────────────────────────────────────────────
 const miniDot = document.getElementById("miniDot")!;
