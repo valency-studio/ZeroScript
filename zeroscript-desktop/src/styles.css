@@ -60,6 +60,31 @@ body {
   height: 100vh;
 }
 
+/* ── Background watermark ────────────────────────────────────────────────
+   Fixed decorative layer behind sidebar + main views. The icon-1024.png
+   is centered and faded to ~12% over a dark radial scrim, so content
+   stays readable. Purely visual: no interaction, hidden from AT. */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(140% 110% at 50% 45%, rgba(10, 13, 18, 0.35), rgba(10, 13, 18, 0.6) 62%, var(--bg) 100%);
+}
+
+.app-bg img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(70vh, 60vw);
+  height: auto;
+  opacity: 0.28;
+  object-fit: contain;
+}
+
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar {
   width: var(--sidebar-w);
@@ -259,6 +284,8 @@ textarea:focus-visible {
   padding: 28px 32px 48px;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+  position: relative;
+  z-index: 1;
 }
 
 .view {
