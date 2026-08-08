@@ -1,50 +1,182 @@
 # Changelog
 
-Riwayat perubahan ZeroScript. Format mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/).
+Semua perubahan penting pada **ZeroScript** didokumentasikan di sini.
 
-Versi yang tidak terdokumentasi di sini tidak disebutkan — riwayat rilis lengkap sebelum versi terbaru tidak tersedia di repo (tidak ada tag/riwayat commit).
+Format changelog mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1.1.0/), dan versi mengikuti [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+---
+
+## [1.0.0] — Rilis Terbaru
+
+**Rilis perdana ZeroScript dengan sistem penomoran versi terpadu.**
+
+Versi ini menyatukan penomoran dari versi sebelumnya, yaitu **Ekstensi 2.4.0** dan **Bridge 1.5.0**, menjadi **ZeroScript 1.0.0**.
 
 ### Added
-- POPUP: latar belakang popup menggunakan `assets/background.png` (dengan lapisan penggelap transparan agar teks tetap terbaca).
-- Tema **crimson** di seluruh UI (popup + UI dalam halaman): stripe, badge versi, tombol Start, tag menu/setup, sorotan situs aktif, focus ring — termasuk varian light mode.
+
+#### Branding & Project
+
+* **Rebranding ke ValencyStudio**
+
+  * Nama dan ikon baru.
+  * Penambahan aset `assets/ValencyStudio-*.png`.
+  * `GITHUB_URL` diarahkan ke repository `valency-studio/ZeroScript`.
+* Dokumentasi awal proyek:
+
+  * `README.md`
+  * `CHANGELOG.md`
+  * `AGENTS.md`
+
+#### User Interface
+
+* Tema **Crimson** diterapkan secara konsisten di seluruh UI.
+* Dukungan tema Crimson untuk **Light Mode**.
+* Pembaruan elemen visual:
+
+  * Stripe.
+  * Version badge.
+  * Start button.
+  * Menu dan setup tag.
+  * Active-site highlight.
+  * Focus ring.
+* Popup menggunakan `assets/background.png`.
+* Penambahan lapisan overlay transparan pada background untuk meningkatkan keterbacaan teks.
+
+#### AI & Agent
+
+* Dukungan **ClickUp AI**.
+* Preferensi mode:
+
+  * **Brain2**
+  * **Super Agents**
+* Penambahan **Done SFX** ketika agent loop berhasil selesai.
+* Penambahan mode **ForgeGUI / Make UI**.
+* Penambahan **Advanced Animation Kit**.
+
+#### Platform
+
+* Penambahan launcher untuk **macOS**:
+
+  * `MacOS_Start.command`
+
+---
+
+## Bridge 1.5.0
+
+Bridge `1.5.0` merupakan bagian dari rilis **ZeroScript 1.0.0**.
+
+### Added
+
+#### Process & Port Management
+
+* Pembersihan otomatis proses zombie **`StudioMCP.exe`** yang masih menahan port `13469`.
+* Pencegahan status **"Studio connected"** palsu akibat proses MCP yang tertinggal.
+* Zombie process hanya dihentikan apabila tidak terdapat Roblox Studio yang benar-benar aktif.
+* Deteksi penyalahgunaan atau pembajakan port oleh proses lain, termasuk kasus seperti `ropilot`.
+* Analisis stderr dari child process untuk mengidentifikasi proses yang mengambil alih port.
+* Proses yang terdeteksi sebagai penyebab konflik port dapat dihentikan secara otomatis.
+* Ditambahkan informasi mengenai cara mencegah konflik tersebut terjadi kembali.
+
+#### Crash & Diagnostics
+
+* Penambahan **Crash-loop forensics**.
+* Banner merah ditampilkan ketika MCP server mengalami crash berulang.
+* Informasi diagnostik mencakup:
+
+  * Exit code.
+  * Baris stderr terakhir.
+  * Proses yang sedang menggunakan port terkait.
+
+#### MCP Server
+
+* Seluruh MCP server diluncurkan secara **paralel**.
+* MCP server yang lambat tidak lagi memblokir server lainnya.
+* Dukungan untuk menambah dan menghapus MCP server tambahan langsung dari ekstensi.
+* `config.json` diperbarui secara otomatis ketika konfigurasi MCP berubah.
+* Bridge melakukan restart otomatis setelah perubahan konfigurasi.
+* MCP server utama **`roblox`** dilindungi agar tidak dapat dihapus secara tidak sengaja.
+
+#### Tool Execution
+
+* Tool call dijalankan sebagai **background task**.
+* Ping dan status bridge tetap dapat diproses ketika terdapat tool call yang membutuhkan waktu lama.
+
+#### Roblox Studio Connection
+
+* Penambahan sistem status Studio dua tingkat:
+
+  1. Aplikasi Roblox Studio terhubung.
+  2. Place benar-benar terbuka dan aktif.
+* Menggunakan:
+
+  * `list_roblox_studios`
+  * `get_studio_state`
+* Transisi status membutuhkan konfirmasi ulang sebelum dianggap valid untuk mengurangi false positive.
+
+#### Auto Recovery
+
+* Proxy dapat melakukan restart otomatis ketika koneksi terputus secara berkelanjutan akibat bug StudioMCP yang telah diketahui.
+* Ditambahkan panduan **"toggle MCP"** ketika Roblox Studio sedang berjalan tetapi belum terdaftar oleh bridge.
+
+#### Status Broadcasting
+
+* `broadcast_status` dipusatkan sehingga perubahan status dikirim secara konsisten ke seluruh tab ekstensi yang sedang terhubung.
+
+#### User Feedback
+
+* Penambahan banner awal **"ACTION NEEDED"**.
+* Banner menggunakan kotak merah dan muncul segera tanpa menunggu grace loop selama 48 detik.
 
 ### Changed
-- README.md lengkap dan AGENTS.md (instruksi untuk pengembang yang bekerja di repo ini).
 
-## 2.4.0 — Ekstensi (rilis terbaru)
+* Log per-call dipindahkan dari terminal ke:
 
-Dikutip dari `manifest.json` `description` + verifikasi kode:
+  `logs/bridge_debug.log`
 
-### Added
-- Dukungan **ClickUp AI** (`providers/clickup.js`) — preferensi mode Brain2 / Super Agents.
-- **Effect suara selesai** ("done SFX") saat loop agen selesai.
-- Mode **ForgeGUI / Make UI**.
-- **Animasi kit lanjutan**.
-- Launcher **macOS** (`MacOS_Start.command`).
+* `bridge_debug.log` menggunakan mode **append-only** untuk mempermudah pemeriksaan riwayat dan debugging.
+
+* Output terminal sekarang difokuskan hanya pada informasi yang penting bagi pengguna.
+
+* Warna ANSI untuk pesan **ACTION** diubah menjadi:
+
+  * Sebelumnya: kuning.
+  * Sekarang: putih di atas latar merah.
+
+  Perubahan ini dibuat agar instruksi yang membutuhkan tindakan pengguna lebih mudah terlihat.
 
 ### Fixed
-- Stabilitas loop agen (loop stability).
 
-## Bridge 1.5.0 — `bridge.py`
+* Peningkatan stabilitas **agent loop**.
+* Perbaikan masalah loop yang dapat menyebabkan proses agen tidak stabil.
+* Peningkatan reliabilitas komunikasi antara ekstensi, bridge, MCP server, dan Roblox Studio.
+* Pengurangan false positive pada status koneksi Roblox Studio.
 
-### Added
-- Pembersihan otomatis **zombie `StudioMCP.exe`** yang menahan port 13469 (menyebabkan status "Studio connected" palsu) — hanya jika tidak ada Studio asli yang berjalan.
-- Penanganan **penyabot port** (mis. ropilot): bukti pembajakan dari stderr anak, bunuh otomatis + petunjuk cara mencegahnya muncul lagi.
-- **Crash-loop forensics**: banner merah saat MCP server mati berulang — menampilkan exit code, baris stderr terakhir, dan siapa yang menempati port.
-- Peluncuran **paralel** semua MCP server (server lambat tidak menahan server lain).
-- Tool call dijalankan sebagai **task latar** sehingga ping/status tetap terlayani selama tool lama berjalan.
-- Status Studio **dua tingkat**: aplikasi terhubung vs. place benar-benar terbuka (`list_roblox_studios` + `get_studio_state`), dengan konfirmasi-ulang sebelum meyakini transisi.
-- **Auto-recovery**: proxy di-restart pada putus sambung berkelanjutan (bug StudioMCP yang dikenal), dengan panduan "toggle MCP" bila Studio berjalan tetapi tidak terdaftar.
-- Banner awal "ACTION NEEDED" (kotak merah) yang muncul segera, tanpa menunggu grace loop 48 detik.
-- Tambah/hapus MCP server tambahan dari ekstensi (config.json ditulis ulang, bridge restart sendiri); server utama `roblox` dilindungi.
-- `broadcast_status` dipusatkan ke semua tab yang terhubung setelah perubahan status.
+---
 
-### Changed
-- Log per-call dipindahkan ke `logs/bridge_debug.log` (append-only) — terminal tetap hanya menampilkan hal yang perlu dibaca.
-- Warna ANSI "action" menjadi putih di atas latar merah agar langkah pengguna tidak terlewat (bukan kuning).
+## Legacy Versions
 
-## Sebelumnya
+Versi sebelum `1.0.0` menggunakan sistem penomoran terpisah:
 
-Versi-versi sebelum 2.4.0 ekstensi / 1.5.0 bridge tidak terdokumentasi. Periksa riwayat tag/rilis di halaman GitHub Releases.
+* **Extension:** `2.4.0`
+* **Bridge:** `1.5.0`
+
+Perubahan dari versi-versi tersebut belum terdokumentasi secara lengkap dalam changelog ini.
+
+Untuk melihat riwayat lengkap versi sebelumnya, perubahan commit, tag, dan release, silakan periksa halaman **GitHub Releases** dan repository ZeroScript.
+
+---
+
+## Versioning
+
+Mulai dari `1.0.0`, versi ZeroScript menggunakan **satu nomor versi terpadu** untuk komponen utama proyek.
+
+Format:
+
+`MAJOR.MINOR.PATCH`
+
+Contoh:
+
+* `1.0.0` — Initial unified release.
+* `1.1.0` — Penambahan fitur baru yang kompatibel.
+* `1.1.1` — Perbaikan bug tanpa perubahan fitur besar.
+* `2.0.0` — Perubahan besar yang dapat memerlukan migrasi atau breaking changes.
