@@ -106,7 +106,6 @@ jobs:
             "  2. Open chrome://extensions (or edge://extensions)." \
             "  3. Enable 'Developer mode' (top right)." \
             "  4. Click 'Load unpacked' and select the '${STAGE}' folder." \
-            "  5. Open a supported AI chat site and press 'Start Roblox Agent'." \
             "" \
             "Requires the ZeroScript Bridge to be running (desktop app or bridge.py)." \
             > README.txt
@@ -193,12 +192,29 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('packaging/requirements.txt') }}
+
       - name: Set up Node (Tauri frontend)
         uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
           cache-dependency-path: zeroscript-desktop/package-lock.json
+
+      - name: Cache Node/npm
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            zeroscript-desktop/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('zeroscript-desktop/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
       - name: Linux system dependencies (WebKitGTK etc.)
         if: runner.os == 'Linux'
@@ -219,6 +235,17 @@ jobs:
       - name: Prepare Tauri sidecars
         working-directory: zeroscript-desktop
         run: node scripts/prepare-sidecars.mjs
+
+      - name: Cache Cargo (Rust/tauri)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            zeroscript-desktop/src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Build the Tauri app
         working-directory: zeroscript-desktop
