@@ -1,9 +1,13 @@
-# Unified release workflow: dijalankan manual dari tab Actions ("Run workflow").
+# Unified release workflow: otomatis terpicu ketika ada push yang mengubah
+# zeroscript-extension/manifest.json (umumnya commit bump versi), atau
+# dijalankan manual dari tab Actions ("Run workflow").
 #
 # Alur kerja:
 #   1. Job `release`    -> ambil versi dari manifest.json (atau input),
 #      package zip ekstensi, ambil release notes dari CHANGELOG.md, lalu
-#      buat GitHub Release dengan zip ekstensi terlampir.
+#      buat GitHub Release dengan zip ekstensi terlampir. Dilewati jika
+#      tag v<versi> sudah pernah dibuat (mis. push menyentuh manifest.json
+#      tanpa mengubah versi, agar tidak membuat release duplikat).
 #   2. Job `build-desktop` (matrix Win/macOS/Linux) -> build Tauri GUI +
 #      PyInstaller bridge sidecar, lalu lampirkan bundle installer ke
 #      Release yang sama.
@@ -15,6 +19,11 @@
 name: Create Release
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - zeroscript-extension/manifest.json
   workflow_dispatch:
     inputs:
       version:
@@ -32,6 +41,10 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: create-release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -44,6 +57,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+      exists: ${{ steps.version.outputs.exists }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,8 +72,17 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          # Skip when the tag already exists: a push may touch manifest.json
+          # without bumping the version (e.g. new host permission) - that
+          # must not create a duplicate release for the same version.
+          if git tag -l "v${VERSION}" | grep -q .; then
+            echo "exists=true"
+          else
+            echo "exists=false"
+          fi
 
       - name: Package extension zip
+        if: steps.version.outputs.exists == 'false'
         run: |
           VER="${{ steps.version.outputs.version }}"
           STAGE="ZeroScript-extension-${VER}"
@@ -84,6 +107,7 @@ jobs:
 
       - name: Extract changelog section as release notes
         id: notes
+        if: steps.version.outputs.exists == 'false'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
 
@@ -111,6 +135,7 @@ jobs:
           printf '%s\n' "$notes" > /tmp/release-notes.md
 
       - name: Create release
+        if: steps.version.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -140,7 +165,7 @@ jobs:
   build-desktop:
     name: ${{ matrix.os }}
     needs: release
-    if: ${{ inputs.draft != true }}
+    if: ${{ inputs.draft != true && needs.release.outputs.exists == 'false' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
