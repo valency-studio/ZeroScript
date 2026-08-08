@@ -81,14 +81,14 @@
   // Trakteer tip link.
   const TRAKTEER_URL = "https://trakteer.id/rtaserver";
   // GitHub releases page - where users download the Bridge + start.bat.
-  const GITHUB_URL = "https://github.com/sebattfg/ZeroScript-Free";
+  const GITHUB_URL = "https://github.com/valency-studio/ZeroScript";
   // Shown in the panel instead of a static "Free" label, so a user's screenshot
   // alone tells us which build they're on for debugging. Pulled from
   // manifest.json (single source of truth) rather than duplicated here.
   const EXT_VERSION = chrome.runtime.getManifest().version;
   // YouTube tutorial - how to set up the Bridge.
   const VIDEO_URL = "https://youtu.be/kPKiZLZ9_Ps";
-  // Work.ink locked link - free "watch an ad" support option. Set once the
+  // safelinku locked link - free "watch an ad" support option. Set once the
   // locker is created at https://safelinku.com/; the button is hidden until then.
   const SAFELINKU_URL = "https://sfl.gl/rFdnDtB";
   // Roblox "tip" Game Passes - the native currency for the audience.

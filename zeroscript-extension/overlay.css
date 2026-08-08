@@ -109,7 +109,7 @@ html.zs-light #zs-bar.zs-bar-anchored {
 #zs-brand { font-weight: 700; letter-spacing: 0.2px; flex: none; font-size: 12.5px; }
 .zs-free {
   font-size: 9.5px; font-weight: 600; letter-spacing: 0.3px;
-  color: #ffb224; background: rgba(255, 178, 36, 0.10); border: 1px solid rgba(255, 178, 36, 0.30);
+  color: #f43f5e; background: rgba(225, 29, 72, 0.10); border: 1px solid rgba(225, 29, 72, 0.32);
   border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle;
   font-family: ui-monospace, "Cascadia Mono", monospace;
 }
@@ -169,15 +169,15 @@ html.zs-light #zs-unstable {
   transition: filter 0.15s ease, background 0.15s ease;
 }
 #zs-action[data-kind="start"] {
-  background: linear-gradient(135deg, #f59e0b, #ffb224); color: #1a1206; border-color: transparent;
-  box-shadow: 0 2px 12px rgba(255, 178, 36, 0.35);
+  background: linear-gradient(135deg, #be123c, #e11d48); color: #fff; border-color: transparent;
+  box-shadow: 0 2px 12px rgba(225, 29, 72, 0.35);
 }
 #zs-action[data-kind="start"]:hover { filter: brightness(1.08); }
 /* Degraded start: Roblox is down but another MCP server is live. Neutral surface
-   with amber text to signal "startable, but not the full setup" - distinct from
-   the solid-amber full-ready start. */
+   with crimson text to signal "startable, but not the full setup" - distinct from
+   the solid-crimson full-ready start. */
 #zs-action[data-kind="start-degraded"] {
-  background: rgba(255, 178, 36, 0.10); color: #ffb224; border-color: rgba(255, 178, 36, 0.40);
+  background: rgba(225, 29, 72, 0.12); color: #f43f5e; border-color: rgba(225, 29, 72, 0.42);
   box-shadow: none;
 }
 #zs-action[data-kind="start-degraded"]:hover { filter: brightness(1.08); }
@@ -189,7 +189,7 @@ html.zs-light #zs-unstable {
 #zs-action.zs-flash { animation: zs-flash 0.4s ease-in-out 3; }
 @keyframes zs-flash {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(255, 178, 36, 0.55); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(225, 29, 72, 0.55); }
 }
 
 /* stop button (replaces the action button while the agent is busy) */
@@ -202,9 +202,9 @@ html.zs-light #zs-unstable {
 /* Winding-down state: the loop is finishing its in-flight step after a Stop
    click. Dimmed + not-allowed so it reads as "registered, please wait". */
 #zs-stop[data-state="stopping"] {
-  background: #b45309; cursor: progress; opacity: 0.85;
+  background: #be123c; cursor: progress; opacity: 0.85;
 }
-#zs-stop[data-state="stopping"]:hover { background: #b45309; }
+#zs-stop[data-state="stopping"]:hover { background: #be123c; }
 
 /* bar controls: one neutral icon-button family (Discord, support, switch) */
 #zs-discord, #zs-support {
@@ -259,11 +259,11 @@ html.zs-light #zs-menu::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); b
   display: flex; align-items: baseline; gap: 7px;
   padding: 12px 14px 11px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  background: linear-gradient(90deg, rgba(255, 178, 36, 0.08), transparent 55%);
+  background: linear-gradient(90deg, rgba(225, 29, 72, 0.08), transparent 55%);
   border-radius: 12px 12px 0 0;
 }
 .zs-menu-logo { font-weight: 700; font-size: 13px; letter-spacing: -0.1px; color: #f2f5f9; }
-.zs-menu-tag { font-size: 10px; font-weight: 600; color: #ffb224; font-family: ui-monospace, "Cascadia Mono", monospace; }
+.zs-menu-tag { font-size: 10px; font-weight: 600; color: #f43f5e; font-family: ui-monospace, "Cascadia Mono", monospace; }
 
 .zs-menu-sec { padding: 12px 14px; }
 .zs-menu-sec + .zs-menu-sec { border-top: 1px solid rgba(148, 163, 184, 0.09); }
@@ -299,11 +299,11 @@ button.zs-site-opt:hover { background: rgba(148, 163, 184, 0.09); }
 button.zs-site-opt:hover .zs-site-go { opacity: 1; transform: translateX(0); }
 .zs-site-here {
   cursor: default;
-  background: rgba(255, 178, 36, 0.07);
-  box-shadow: inset 2px 0 0 #ffb224;
+  background: rgba(225, 29, 72, 0.08);
+  box-shadow: inset 2px 0 0 #e11d48;
 }
 .zs-site-here .zs-site-badge {
-  color: #ffb224; border-color: rgba(255, 178, 36, 0.40); background: rgba(255, 178, 36, 0.08);
+  color: #f43f5e; border-color: rgba(225, 29, 72, 0.40); background: rgba(225, 29, 72, 0.08);
 }
 .zs-site-badge {
   flex: none; font-size: 10px; font-weight: 500; color: #7a7a82;
@@ -316,7 +316,7 @@ button.zs-site-opt:hover .zs-site-go { opacity: 1; transform: translateX(0); }
   border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;
   padding: 8px 10px; font-size: 12px; font-family: inherit; line-height: 1.45;
 }
-#zs-set-text:focus { outline: none; border-color: rgba(255, 178, 36, 0.45); box-shadow: 0 0 0 2px rgba(255, 178, 36, 0.12); }
+#zs-set-text:focus { outline: none; border-color: rgba(225, 29, 72, 0.45); box-shadow: 0 0 0 2px rgba(225, 29, 72, 0.12); }
 .zs-set-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 #zs-set-save, #zs-mcp-add {
   background: rgba(255, 255, 255, 0.09); color: #ededf0;
@@ -382,7 +382,7 @@ button.zs-site-opt:hover .zs-site-go { opacity: 1; transform: translateX(0); }
   border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;
   padding: 7px 9px; font-size: 12px; font-family: inherit; margin-bottom: 6px;
 }
-.zs-mcp-field:focus { outline: none; border-color: rgba(255, 178, 36, 0.45); box-shadow: 0 0 0 2px rgba(255, 178, 36, 0.12); }
+.zs-mcp-field:focus { outline: none; border-color: rgba(225, 29, 72, 0.45); box-shadow: 0 0 0 2px rgba(225, 29, 72, 0.12); }
 
 /* small inline spinner shown next to #zs-mcp-add while the bridge restarts */
 .zs-mcp-spin-row { display: inline-flex; align-items: center; gap: 6px; }
@@ -782,11 +782,11 @@ ol.flex-col-reverse > div.w-full:not(.mx-auto) > .zs-chip {
 #zs-setup-head {
   display: flex; align-items: baseline; gap: 7px;
   padding: 12px 15px 11px; border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  background: linear-gradient(90deg, rgba(255, 178, 36, 0.08), transparent 55%);
+  background: linear-gradient(90deg, rgba(225, 29, 72, 0.08), transparent 55%);
   border-radius: 12px 12px 0 0;
 }
 #zs-setup-logo { font-weight: 700; font-size: 13px; letter-spacing: -0.1px; color: #f2f5f9; }
-#zs-setup-tag { font-size: 10px; font-weight: 600; color: #ffb224; font-family: ui-monospace, "Cascadia Mono", monospace; }
+#zs-setup-tag { font-size: 10px; font-weight: 600; color: #f43f5e; font-family: ui-monospace, "Cascadia Mono", monospace; }
 #zs-setup-sub { color: #9a9aa2; font-size: 11.5px; line-height: 1.5; margin: 12px 15px 12px; }
 /* the steps ARE a real sequence, so numbered markers earn their place here */
 #zs-setup-steps {
@@ -909,9 +909,9 @@ html.zs-light #zs-bar {
   box-shadow: 0 8px 30px rgba(15, 23, 42, 0.16);
 }
 html.zs-light #zs-brand { color: #1f2430; }
-html.zs-light .zs-free { color: #92610a; background: rgba(240, 180, 41, 0.12); border-color: rgba(180, 130, 10, 0.45); }
+html.zs-light .zs-free { color: #be123c; background: rgba(225, 29, 72, 0.08); border-color: rgba(225, 29, 72, 0.30); }
 html.zs-light #zs-state { color: #4b5563; }
-html.zs-light #zs-state b { color: #92610a; }
+html.zs-light #zs-state b { color: #be123c; }
 html.zs-light #zs-state.zs-state-warn { color: #b91c1c; }
 html.zs-light #zs-bar.tone-active #zs-state b { color: #059669; }
 html.zs-light #zs-discord,
@@ -935,11 +935,11 @@ html.zs-light #zs-setup {
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
 }
 html.zs-light .zs-menu-head,
-html.zs-light #zs-setup-head { border-bottom-color: rgba(0, 0, 0, 0.08); background: linear-gradient(90deg, rgba(240, 180, 41, 0.10), transparent 55%); }
+html.zs-light #zs-setup-head { border-bottom-color: rgba(0, 0, 0, 0.08); background: linear-gradient(90deg, rgba(225, 29, 72, 0.08), transparent 55%); }
 html.zs-light .zs-menu-logo,
 html.zs-light #zs-setup-logo { color: #1f2430; }
 html.zs-light .zs-menu-tag,
-html.zs-light #zs-setup-tag { color: #92610a; }
+html.zs-light #zs-setup-tag { color: #be123c; }
 html.zs-light .zs-menu-sec + .zs-menu-sec { border-top-color: rgba(0, 0, 0, 0.07); }
 html.zs-light .zs-sec-label span { color: #6b6b73; }
 html.zs-light .zs-menu-note { color: #6b7280; }
@@ -969,11 +969,11 @@ html.zs-light .zs-site-host { color: #9ca3af; }
 html.zs-light button.zs-site-opt:hover { background: rgba(0, 0, 0, 0.05); }
 html.zs-light .zs-site-badge { color: #6b7280; border-color: rgba(0, 0, 0, 0.14); }
 html.zs-light .zs-site-here {
-  background: rgba(217, 119, 6, 0.08);
-  box-shadow: inset 2px 0 0 #d97706;
+  background: rgba(225, 29, 72, 0.06);
+  box-shadow: inset 2px 0 0 #e11d48;
 }
 html.zs-light .zs-site-here .zs-site-badge {
-  color: #92610a; border-color: rgba(180, 130, 10, 0.45); background: rgba(240, 180, 41, 0.12);
+  color: #be123c; border-color: rgba(225, 29, 72, 0.35); background: rgba(225, 29, 72, 0.08);
 }
 html.zs-light .zs-site-go { color: #9ca3af; }
 html.zs-light #zs-set-save,

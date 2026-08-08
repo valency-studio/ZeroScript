@@ -9,16 +9,17 @@
 
     body {
       width: 300px;
-      background: linear-gradient(165deg, #10151e 0%, #0a0d12 100%);
+      background: #0a0d12 url("assets/background.png") center / cover no-repeat;
+      background-image: linear-gradient(rgba(10, 13, 18, 0.700), rgba(10, 13, 18, 0.700)), url("assets/background.png");
       font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
       color: #dce6f0;
       overflow: hidden;
     }
 
-    /* ─── Amber brand stripe ─────────────────────────────────── */
+    /* ─── Crimson brand stripe ──────────────────────────────── */
     .topbar {
       height: 2px;
-      background: linear-gradient(90deg, #ffb224 0%, rgba(255,178,36,0.45) 50%, transparent 100%);
+      background: linear-gradient(90deg, #e11d48 0%, rgba(225,29,72,0.45) 50%, transparent 100%);
     }
 
     /* ─── Header ─────────────────────────────────────────────── */
@@ -27,7 +28,7 @@
       align-items: center;
       gap: 8px;
       padding: 13px 15px 12px;
-      background: linear-gradient(90deg, rgba(255,178,36,0.09), transparent 65%);
+      background: linear-gradient(90deg, rgba(225,29,72,0.10), transparent 65%);
       border-bottom: 1px solid rgba(148,163,184,0.10);
     }
 
@@ -43,9 +44,9 @@
       font-size: 9.5px;
       font-weight: 600;
       letter-spacing: 0.3px;
-      color: #ffb224;
-      background: rgba(255,178,36,0.10);
-      border: 1px solid rgba(255,178,36,0.28);
+      color: #f43f5e;
+      background: rgba(225,29,72,0.12);
+      border: 1px solid rgba(225,29,72,0.32);
       border-radius: 4px;
       padding: 1px 6px;
       font-family: ui-monospace, "Cascadia Mono", monospace;
@@ -208,6 +209,10 @@
       transition: background 0.14s ease, filter 0.14s ease, transform 0.09s ease;
     }
     button:active { transform: scale(0.97); }
+    button:focus-visible {
+      outline: 2px solid rgba(225, 29, 72, 0.7);
+      outline-offset: 2px;
+    }
 
     /* Paired small buttons */
     #reconnect, #restart {
@@ -233,17 +238,17 @@
       color: #c0ccd8;
     }
 
-    /* Trakteer CTA — the one amber moment in the button group */
+    /* Trakteer CTA — the one crimson moment in the button group */
     #trakteer {
       width: 100%;
-      background: linear-gradient(135deg, #f59e0b 0%, #ffb224 100%);
-      color: #1c1204;
+      background: linear-gradient(135deg, #be123c 0%, #e11d48 100%);
+      color: #fff;
       font-weight: 700;
-      box-shadow: 0 2px 16px rgba(255,178,36,0.22);
+      box-shadow: 0 2px 16px rgba(225,29,72,0.28);
     }
     #trakteer:hover {
       filter: brightness(1.07);
-      box-shadow: 0 4px 20px rgba(255,178,36,0.32);
+      box-shadow: 0 4px 20px rgba(225,29,72,0.38);
     }
 
     /* ─── Setup hint ──────────────────────────────────────────── */
