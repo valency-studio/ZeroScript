@@ -93,10 +93,10 @@
   const SAFELINKU_URL = "https://sfl.gl/rFdnDtB";
   // Roblox "tip" Game Passes - the native currency for the audience.
   const ROBUX_PASSES = [
-    { robux: 30, id: 1865342947 },
-    { robux: 100, id: 1866782815 },
-    { robux: 300, id: 1869176990 },
-    { robux: 1000, id: 1865192973 },
+    { robux: 50, id: 1940190737 },
+    { robux: 100, id: 1940094690 },
+    { robux: 500, id: 1940490702 },
+    { robux: 1000, id: 1941762676 },
   ];
   const passUrl = (id) => `https://www.roblox.com/game-pass/${id}`;
   // AI chat sites ZeroScript works on. Keep in sync with manifest.json
