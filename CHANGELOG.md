@@ -6,47 +6,61 @@ Format changelog mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1
 
 ---
 
-## [1.0.2] — Penyempurnaan Desktop GUI
+## [1.0.3] — Redesktop Desktop GUI
 
-**Penyempurnaan besar pada antarmuka dan manajemen proses Desktop GUI.**
+**Desain ulang menyeluruh antarmuka desktop — lebih modern, responsif, dan punya identitas visual tersendiri.**
 
 ### Added
 
-* **Panduan Quick Start di Dashboard**
+* **Peta koneksi animasi di Dashboard**
 
-  * Kartu langkah demi langkah: mulai bridge, sambungkan Roblox Studio, buka situs AI chat.
-  * Muncul hanya ketika ada komponen yang belum siap dan hilang otomatis setelah semuanya terhubung.
+  * Visualisasi tiga node (AI Chat → ZeroScript Bridge → Roblox Studio) dengan partikel bergerak sepanjang koneksi saat link aktif.
+  * Setiap node menyala cyan saat online, redup saat offline.
+  * Status bar menampilkan bridge/MCP/place/tools sekilas.
 
-* **Halaman About didesain ulang**
+* **Pilihan tema Cyan ↔ Crimson**
 
-  * Merender file README dan catatan rilis terbaru langsung di aplikasi.
-  * Pemeriksa update dengan tombol "Check now" dan "Download".
-  * Tombol "Copy version info" untuk mempermudah pelaporan bug.
-  * Tombol "Open folder" untuk membuka direktori data aplikasi (command baru `open_path` di Rust).
-  * Ikon SVG inline, kredit, dan ringkasan lisensi MIT.
+  * Toggle di Settings untuk berganti aksen utama antara electric cyan (default) dan crimson.
+  * Preferensi disimpan perangkat lokal dan diterapkan sebelum first paint.
 
-* **Perbaikan manajemen proses bridge di `lib.rs`**
+* **Tipografi khas**
 
-  * PID bridge dilacak terpisah karena `CommandChild::kill()` hanya menghentikan proses langsung, sedangkan sidecar PyInstaller menciptakan proses child tambahan.
-  * `kill_process_tree` baru: `taskkill /F /T` di Windows, `pkill -P` berulang + `kill -KILL` di macOS/Linux.
+  * Space Grotesk untuk judul, Inter untuk body, JetBrains Mono untuk data — dipuat dari Google Fonts.
 
 ### Changed
 
-* **Bugfix race condition Stop → Start**
+* **Palet warna baru**
 
-  * Generasi proses di-invalidasi sebelum proses dihentikan, sehingga event `Terminated` lama tidak lagi membersihkan status bridge yang baru.
-  * Status berhenti manual vs crash dilaporkan lebih akurat ke UI.
+  * Canvas midnight-navy (`#060a14`) menggantikan dark hangat — terasa seperti command console.
+  * Aksen electric cyan (`#22d3ee`) sebagai warna utama — memberi sinyal "data in motion" dan identitas terpisah dari ekstensi browser.
+  * Kartu menggunakan glass morphism: semi-transparan dengan `backdrop-filter: blur(12px)`.
 
-* **Pemformatan ulang kode TypeScript dan Rust**
+* **Sidebar compact**
 
-  * Konsistensi gaya, guard clauses, dan pemisahan bagian dengan komentar terstruktur.
-  * Error message Rust yang lebih deskriptif.
+  * Navigasi lebih rapat dengan accent bar bercahaya pada item aktif.
+  * Status dot dengan animasi pulse berwarna.
 
-* **Stylesheet diperbarui**
+* **Tombol & micro-interactions**
 
-  * Sidebar dengan `backdrop-filter` blur, sudut membulat lebih besar, penyempurnaan warna dan bayangan.
+  * Tombol primary bercahaya cyan, scale kecil saat ditekan.
+  * Kartu lift dengan shadow lebih kuat saat hover.
+  * Toast dengan indikator ikon (✓ / ✕ / ○).
 
-* `.gitignore` kini mengabaikan `dist/`.
+* **Responsivitas diperbaiki**
+
+  * Sidebar collapse ke ikon di bawah 960px.
+  * Peta koneksi stack vertikal di bawah 860px.
+  * Grid otomatis single-column di layar kecil.
+
+* **Background watermark lebih terang**
+
+  * Opnais naik dari 0.06 ke 0.12 — lebih terang tapi tetap tidak mengganggu konten.
+
+* **Renderer release notes diperbaiki**
+
+  * Parsing inline (bold, italic, code span, link) sekarang berjalan pada teks raw sebelum HTML escape.
+  * Code block di-escape dengan benar — tidak lagi merusak layout.
+  * Dukungan ordered list (`1.`, `2.`) dan italic (`*teks*`).
 
 ---
 
