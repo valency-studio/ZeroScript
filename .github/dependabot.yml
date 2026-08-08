@@ -1,11 +1,32 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Dependabot version updates for ZeroScript.
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options
 
 version: 2
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Desktop GUI frontend (Tauri + Vite, package.json + lockfile)
+  - package-ecosystem: "npm"
+    directory: "/zeroscript-desktop"
+    schedule:
+      interval: "weekly"
+    groups:
+      tauri:
+        patterns:
+          - "@tauri-apps/*"
+
+  # Desktop GUI backend (Rust, Cargo.toml + lockfile)
+  - package-ecosystem: "cargo"
+    directory: "/zeroscript-desktop/src-tauri"
+    schedule:
+      interval: "weekly"
+
+  # Desktop packaging build dependencies (PyInstaller)
+  - package-ecosystem: "pip"
+    directory: "/packaging"
     schedule:
       interval: "weekly"
