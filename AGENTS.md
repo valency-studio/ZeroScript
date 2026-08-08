@@ -35,6 +35,12 @@ Grep for "Keep in sync" — the codebase flags other mirrored lists the same way
 - If a configured Roblox MCP server needs Node.js (`npx/npm/node` in its command) and none is installed, the bridge prints an ACTION NEEDED banner and falls back to Roblox Studio's built-in StudioMCP via `launch_studio_mcp` (`_needs_node_fallback` / `_apply_node_fallback`, once per process).
 - Keep `BRIDGE_VERSION`, `manifest.json` "version", and `CHANGELOG.md` in sync when packaging; the build workflow passes the release tag as `--version`.
 
+## Desktop GUI (Tauri)
+
+- `zeroscript-desktop/` is a **Tauri v2** app (Vite + vanilla TypeScript) that runs the PyInstaller bridge as a hidden **sidecar** (`bundle.externalBin` -> `src-tauri/binaries`, named with the Rust host target-triple suffix). `_sibling_exe` in bridge.py globs for those suffixed names. `config.json` + `logs/` go to Tauri's per-OS app-data dir via the `ZS_DATA_DIR` env set when spawning the sidecar.
+- `src-tauri/src/lib.rs` owns start/stop/restart, streams sidecar output to the GUI (`bridge-log` / `bridge-exit` events), tray + minimize-to-tray, single-instance guard, and the autostart plugin. The GUI talks to the bridge over the SAME `ws://127.0.0.1:17613` protocol as the extension (`src/bridge-ws.ts`); the browser extension remains the AI-chat UI.
+- Local dev: `npm run prepare:sidecars:stub` (placeholders — run `python bridge.py` in a terminal for a real bridge) or real sidecars via `packaging/build.py --binaries-only` + `npm run prepare:sidecars`, then `npm run tauri dev`. CI: `.github/workflows/build-desktop-gui.yml` builds real sidecars and runs `npx tauri build` (NSIS/DMG/AppImage).
+
 ## Commands
 
 - Parser tests (the only automated tests in the repo): `node test-parser.js` from `zeroscript-extension/` (expects `node`; uses `require`, so no bundler).

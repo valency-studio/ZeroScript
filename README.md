@@ -304,6 +304,38 @@ Hasilnya ada di `dist/packages/`. Windows juga butuh **NSIS** (`makensis`)
 untuk installer `.exe`; macOS butuh `hdiutil` (bawaan); Linux mendownload
 `appimagetool` otomatis.
 
+## Desktop GUI (Tauri) — versi modern
+
+Fase modern: aplikasi desktop native dengan **GUI** (dashboard status,
+live logs, kelola MCP servers, settings, tray icon, autostart) — tanpa jendela
+terminal sama sekali. Python/Node tetap tidak perlu diinstal user.
+
+- Source: `zeroscript-desktop/` — **Tauri v2** + Vite + TypeScript (tanpa framework).
+- Bridge Python tetap dipakai, di-bundle sebagai **sidecar tersembunyi**
+  (PyInstaller). `config.json` + `logs/` disimpan di folder data per-OS:
+  Windows `%APPDATA%\com.zeroscript.desktop`, macOS
+  `~/Library/Application Support/com.zeroscript.desktop`, Linux
+  `~/.local/share/com.zeroscript.desktop`.
+- Fallback Node.js tetap berlaku: user tanpa Node otomatis dialihkan ke
+  StudioMCP bawaan Roblox (banner ACTION NEEDED muncul di Logs view).
+- Ekstensi browser **tetap diperlukan** — GUI ini menjalankan & mengawasi
+  bridge, bukan menggantikan overlay di situs AI chat.
+- Installer dihasilkan Tauri sendiri: **NSIS** (Windows), **DMG** (macOS),
+  **AppImage + deb** (Linux) — otomatis via workflow `Build Desktop GUI`.
+
+Build lokal (dev):
+
+```bash
+cd zeroscript-desktop
+npm install
+npm run prepare:sidecars:stub   # placeholder; jalankan python bridge.py terpisah
+npm run tauri dev
+# atau sidecar asli:
+#   python ../packaging/build.py --binaries-only
+#   npm run prepare:sidecars
+#   npm run tauri dev
+```
+
 ---
 
 # 🚀 Instalasi

@@ -116,13 +116,28 @@ def _sibling_exe(script_stem):
     """Packaged builds ship small helper scripts (launch_studio_mcp.py, ...) as
     sibling executables next to the bridge binary. A bare '.py' command in
     config.json maps to that bundled executable. Returns the path, or None in
-    dev mode / when the sibling binary is missing."""
+    dev mode / when the sibling binary is missing.
+
+    Two packaged layouts are supported: the plain PyInstaller one (exact name,
+    e.g. launch_studio_mcp.exe) and Tauri sidecars, which Tauri ships with a
+    target-triple suffix (e.g. launch_studio_mcp-x86_64-pc-windows-msvc.exe)."""
     if not getattr(sys, "frozen", False):
         return None
-    exe = os.path.join(HERE, script_stem)
-    if sys.platform == "win32" and not exe.lower().endswith(".exe"):
-        exe += ".exe"
-    return exe if os.path.isfile(exe) else None
+    candidates = [os.path.join(HERE, script_stem)]
+    if sys.platform == "win32" and not script_stem.lower().endswith(".exe"):
+        candidates.append(os.path.join(HERE, script_stem + ".exe"))
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    import glob
+    pattern = os.path.join(HERE, script_stem + "-*")
+    if sys.platform == "win32":
+        pattern += ".exe"
+    try:
+        hits = sorted(glob.glob(pattern))
+    except Exception:
+        hits = []
+    return hits[0] if hits else None
 
 # The primary server. It is always present, added by the installer, and can
 # never be edited/removed through the extension (it is what ZeroScript is FOR).

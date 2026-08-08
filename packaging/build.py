@@ -259,10 +259,22 @@ def build_linux(ver):
 def main():
     ap = argparse.ArgumentParser(description="Build the ZeroScript desktop package for this OS.")
     ap.add_argument("--version", help="Override the version (default: zeroscript-extension/manifest.json).")
+    ap.add_argument("--binaries-only", action="store_true",
+                    help="Only build the PyInstaller binaries into dist/pyi - used by the "
+                         "Tauri GUI build (zeroscript-desktop), which bundles them as sidecars.")
     args = ap.parse_args()
 
     ver = (args.version or "").lstrip("v") or version_from_manifest()
     log(f"building ZeroScript v{ver} on {SYSTEM}")
+
+    if args.binaries_only:
+        log("binaries-only mode: PyInstaller binaries will land in " + str(PYI))
+        pyinstaller("ZeroScriptBridge", "bridge.py")
+        pyinstaller("launch_studio_mcp", "launch_studio_mcp.py")
+        log("done. sidecar sources ready:")
+        for p in sorted(PYI.iterdir()):
+            log(f"  - {p.name}")
+        return
 
     if SYSTEM == "Windows":
         build_windows(ver)

@@ -1,0 +1,26 @@
+{
+  "name": "zeroscript-desktop",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ZeroScript Desktop - modern GUI for the ZeroScript bridge (Tauri + Vite).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "tauri": "tauri",
+    "prepare:sidecars": "node scripts/prepare-sidecars.mjs",
+    "prepare:sidecars:stub": "node scripts/prepare-sidecars.mjs --stub"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-autostart": "^2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "typescript": "^5",
+    "vite": "^6"
+  },
+  "trustedDependencies": [
+    "esbuild"
+  ]
+}

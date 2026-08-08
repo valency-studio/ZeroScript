@@ -9,8 +9,15 @@ docs/
 *.zip
 
 # Local dev / diagnostic tools
-probe.py
-logs/*.log
+probe.pylogs/
+
+# Tauri desktop GUI build artifacts (sidecars are built by CI / packaging)
+zeroscript-desktop/node_modules/
+zeroscript-desktop/dist/
+zeroscript-desktop/src-tauri/target/
+zeroscript-desktop/src-tauri/binaries/*
+zeroscript-desktop/src-tauri/gen/
+*.log
 
 # System files
 .DS_Store

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZeroScript</title>
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ── Sidebar ─────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div class="brand-text">
+          <span class="brand-name">ZeroScript</span>
+          <span class="brand-tag">Roblox Agent</span>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Main">
+        <button class="nav-item active" data-view="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-item" data-view="logs">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg>
+          Logs
+        </button>
+        <button class="nav-item" data-view="servers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>
+          MCP Servers
+        </button>
+        <button class="nav-item" data-view="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="mini-status">
+          <span id="miniDot" class="dot mini"></span>
+          <span id="miniState">Bridge offline</span>
+        </div>
+        <div class="version-line">v<span id="appVer">—</span></div>
+      </div>
+    </aside>
+
+    <!-- ── Main ────────────────────────────────────────────── -->
+    <main class="main">
+      <section class="view active" id="view-dashboard" data-view-panel="dashboard">
+        <header class="view-head">
+          <h1>Dashboard</h1>
+          <p id="dashSub">Bridge, Studio and tool status at a glance.</p>
+        </header>
+        <div id="dashRoot"></div>
+      </section>
+
+      <section class="view" id="view-logs" data-view-panel="logs">
+        <header class="view-head">
+          <h1>Logs</h1>
+          <p>Live output from the ZeroScript bridge.</p>
+        </header>
+        <div class="logs-wrap">
+          <div class="logs-toolbar">
+            <span class="logs-hint">Streaming</span>
+            <span class="spacer"></span>
+            <button id="logsPause" class="btn ghost sm">Pause</button>
+            <button id="logsClear" class="btn ghost sm">Clear</button>
+          </div>
+          <div id="logs" class="console" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-servers" data-view-panel="servers">
+        <header class="view-head">
+          <h1>MCP Servers</h1>
+          <p>Configure the MCP servers the bridge spawns. The primary Roblox server is protected.</p>
+        </header>
+        <div id="serversRoot"></div>
+      </section>
+
+      <section class="view" id="view-settings" data-view-panel="settings">
+        <header class="view-head">
+          <h1>Settings</h1>
+          <p>Data location, startup behaviour and version info.</p>
+        </header>
+        <div id="settingsRoot"></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

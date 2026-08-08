@@ -1,0 +1,97 @@
+# Builds the ZeroScript DESKTOP GUI (Tauri) on all three platforms.
+#
+# Flow per platform:
+#   1. packaging/build.py --binaries-only  ->  PyInstaller bridge binaries
+#   2. scripts/prepare-sidecars.mjs        ->  renamed into src-tauri/binaries
+#      with the host target-triple suffix Tauri requires for externalBin.
+#   3. tauri build                         ->  NSIS (Win) / DMG (mac) /
+#      AppImage + deb (Linux), bundling the bridge as a hidden sidecar.
+#
+# Triggered automatically when a release is published (created by the manual
+# "Create Release" workflow) or manually from the Actions tab.
+name: Build Desktop GUI (Tauri)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: zeroscript-gui-windows
+          - os: macos-latest
+            artifact: zeroscript-gui-macos
+          - os: ubuntu-latest
+            artifact: zeroscript-gui-linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (bridge sidecars)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node (Tauri frontend)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: zeroscript-desktop/package-lock.json
+
+      - name: Linux system dependencies (WebKitGTK etc.)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf
+
+      - name: Build bridge sidecars (PyInstaller)
+        run: |
+          python -m pip install -r packaging/requirements.txt
+          python packaging/build.py --binaries-only
+
+      - name: Install frontend dependencies
+        working-directory: zeroscript-desktop
+        run: npm ci
+
+      - name: Prepare Tauri sidecars
+        working-directory: zeroscript-desktop
+        run: node scripts/prepare-sidecars.mjs
+
+      - name: Build the Tauri app
+        working-directory: zeroscript-desktop
+        shell: bash
+        # Explicit per-OS bundles: Windows "all" would also build MSI (needs
+        # WiX) and Linux "all" includes rpm (needs rpmbuild) - neither is
+        # installed on the runners, so pin the targets we ship.
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then BUNDLES="nsis";
+          elif [ "$RUNNER_OS" = "macOS" ]; then BUNDLES="app,dmg";
+          else BUNDLES="deb,appimage"; fi
+          npx tauri build --bundles "$BUNDLES"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            zeroscript-desktop/src-tauri/target/release/bundle/**/*
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            zeroscript-desktop/src-tauri/target/release/bundle/**/*
