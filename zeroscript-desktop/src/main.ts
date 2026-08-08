@@ -47,12 +47,33 @@ initAbout(document.getElementById("aboutRoot")!);
 
 // ── bridge events from Rust (sidecar stdout/stderr) ───────────────────────
 listen<string>("bridge-log", (e) => appendLog(e.payload)).catch(() => undefined);
-listen<number>("bridge-exit", () => {
-  appendLog("\n[bridge] process exited — bridge stopped.\n");
-  // The sidecar terminated - refresh every view NOW instead of waiting for
-  // the webview to notice the dead socket (which can lag for a long time).
+
+// FIXED: payload was bare number, now { code: number; intentional: boolean }.
+// Previously the callback was `() => ...` so the payload was never read at all,
+// meaning a manual stop and a crash showed the same message and toast.
+interface BridgeExitPayload {
+  /** OS exit code of the bridge process; -1 if unknown. */
+  code: number;
+  /** true = user clicked Stop / Restart; false = crash or external kill. */
+  intentional: boolean;
+}
+
+listen<BridgeExitPayload>("bridge-exit", (e) => {
+  const { code, intentional } = e.payload;
+
+  if (intentional) {
+    // User explicitly stopped the bridge — neutral log, neutral toast.
+    appendLog("\n[bridge] process stopped by user.\n");
+    toast("Bridge stopped");
+  } else {
+    // Unexpected exit: show exit code so the user can diagnose it.
+    appendLog(`\n[bridge] process exited unexpectedly (code ${code}).\n`);
+    toast(`Bridge crashed (exit ${code})`);
+  }
+
+  // Either way, force the client offline immediately instead of waiting for
+  // the dead-socket timeout (which can lag for a long time).
   client.forceOffline();
-  toast("Bridge stopped");
 }).catch(() => undefined);
 
 // ── sidebar mini status ────────────────────────────────────────────────────

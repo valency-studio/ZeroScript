@@ -12,7 +12,7 @@
 //  autostart plugin (on-login toggle from the Settings view).
 // ---------------------------------------------------------------------------
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -30,10 +30,40 @@ use tauri_plugin_shell::ShellExt;
 /// a Stop -> quick Start could let the OLD task's Terminated event clear the
 /// NEW child from state (GUI would report "stopped" while a bridge runs, and
 /// a later Stop would not kill it).
+///
+/// `stopping` is set to `true` just before an intentional kill so the
+/// background task can tell the frontend this was a manual stop, not a crash.
 struct BridgeState {
     child: Mutex<Option<CommandChild>>,
     gen: AtomicU64,
+    stopping: AtomicBool,
 }
+
+// ---------------------------------------------------------------------------
+// bridge-exit event payload
+// ---------------------------------------------------------------------------
+
+/// Payload for the "bridge-exit" event.
+///
+/// FRONTEND MIGRATION NOTE: previously this event carried a bare `i32` exit
+/// code. It now carries `{ code: number, intentional: boolean }`.
+/// Update your listener accordingly:
+///
+///   listen<BridgeExitPayload>("bridge-exit", ({ payload }) => {
+///     if (!payload.intentional) { /* handle crash */ }
+///   });
+#[derive(Clone, serde::Serialize)]
+struct BridgeExitPayload {
+    /// OS exit code of the bridge process (-1 if unknown).
+    code: i32,
+    /// true  = user explicitly stopped/restarted the bridge.
+    /// false = process crashed or was killed externally.
+    intentional: bool,
+}
+
+// ---------------------------------------------------------------------------
+// app data dir + settings
+// ---------------------------------------------------------------------------
 
 /// Per-OS data directory for config.json + logs (via ZS_DATA_DIR).
 fn data_dir(app: &AppHandle) -> PathBuf {
@@ -81,6 +111,54 @@ fn set_start_bridge_on_launch(app: AppHandle, enabled: bool) -> Result<(), Strin
     write_settings(&app, &s)
 }
 
+// ---------------------------------------------------------------------------
+// process-tree kill  ← FIXED: was only killing the direct child
+// ---------------------------------------------------------------------------
+
+/// Kill a process AND all its descendants.
+///
+/// `CommandChild::kill()` only signals the **direct** child process.
+/// PyInstaller sidecars unpack and exec a separate Python runtime; if we only
+/// kill the launcher that Python process survives as an orphan, continues
+/// holding the listen socket, and a subsequent `start_bridge` / restart will
+/// fail to bind the port.
+///
+/// * **Windows** — `taskkill /F /T /PID <pid>` (force + full tree recursion).
+///   CREATE_NO_WINDOW prevents a console flash.
+/// * **macOS / Linux** — send SIGKILL directly to the PID, then also to the
+///   process *group* (`-<pgid>`). PyInstaller typically becomes the group
+///   leader so the group kill reaches all its worker children. The second
+///   command fails gracefully when the bridge is not a group leader.
+fn kill_tree(pid: u32) {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const NO_WINDOW: u32 = 0x0800_0000;
+        // Errors are intentionally ignored: the process may already be dead.
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &pid.to_string()])
+            .creation_flags(NO_WINDOW)
+            .spawn();
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Direct SIGKILL to the process itself.
+        let _ = std::process::Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .spawn();
+        // SIGKILL to the process group (pgid == pid when bridge is leader).
+        // Harmless if the bridge is not the group leader.
+        let _ = std::process::Command::new("kill")
+            .args(["-9", &format!("-{pid}")])
+            .spawn();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// spawn / kill bridge
+// ---------------------------------------------------------------------------
+
 /// Spawn the bridge sidecar (hidden, no console window) and start streaming
 /// its output to the frontend. No-op if it is already running.
 fn spawn_bridge(app: &AppHandle) -> Result<(), String> {
@@ -109,10 +187,16 @@ fn spawn_bridge(app: &AppHandle) -> Result<(), String> {
                     let _ = app2.emit("bridge-log", line);
                 }
                 CommandEvent::Terminated(payload) => {
-                    let code = payload.code.unwrap_or(-1);
-                    let _ = app2.emit("bridge-exit", code);
                     let st = app2.state::<BridgeState>();
-                    // Only clear the state if no NEWER child has replaced this
+
+                    // Atomically consume the stopping flag.
+                    // true  = stop was requested by the user.
+                    // false = unexpected crash / external kill.
+                    let intentional = st.stopping.swap(false, Ordering::SeqCst);
+                    let code = payload.code.unwrap_or(-1);
+                    let _ = app2.emit("bridge-exit", BridgeExitPayload { code, intentional });
+
+                    // Only clear state when no NEWER child has replaced this
                     // one (see the generation counter doc on BridgeState).
                     if st.gen.load(Ordering::SeqCst) == gen {
                         *st.child.lock().unwrap() = None;
@@ -126,13 +210,48 @@ fn spawn_bridge(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// FIXED: was only calling child.kill() which misses PyInstaller subprocesses.
+///
+/// New order of operations:
+///  1. Set `stopping = true` BEFORE taking the child so the Terminated
+///     handler sees it even if the process dies between take() and kill_tree().
+///  2. Take the child out of the mutex (state appears "stopped" immediately).
+///  3. Call kill_tree(pid) — OS-level, kills the full process tree.
+///  4. Call child.kill() — belt-and-suspenders via the plugin handle.
+///
+/// If there is no child, `stopping` is reset so the flag doesn't leak.
 fn kill_bridge(app: &AppHandle) {
     let state = app.state::<BridgeState>();
+
+    // Set BEFORE locking so the Terminated handler can never miss it,
+    // even on a very fast process death.
+    state.stopping.store(true, Ordering::SeqCst);
+
     let mut guard = state.child.lock().unwrap();
     if let Some(child) = guard.take() {
-        let _ = child.kill();
+        let pid = child.pid();
+        // Step 1: OS-level kill of the full process tree.
+        kill_tree(pid);
+        // Step 2: plugin-level kill as a belt-and-suspenders fallback.
+        // FIXED: error was silently discarded; now we at least log it.
+        if let Err(e) = child.kill() {
+            // The process is likely already dead (kill_tree succeeded).
+            // Emit as a debug log rather than an error.
+            let _ = app.emit(
+                "bridge-log",
+                format!("[gui] child.kill() after kill_tree: {e}\n"),
+            );
+        }
+    } else {
+        // Nothing was running — clear the flag we set above so it doesn't
+        // accidentally mark a future Terminated event as intentional.
+        state.stopping.store(false, Ordering::SeqCst);
     }
 }
+
+// ---------------------------------------------------------------------------
+// tauri commands
+// ---------------------------------------------------------------------------
 
 #[tauri::command]
 fn start_bridge(app: AppHandle) -> Result<(), String> {
@@ -148,7 +267,9 @@ fn stop_bridge(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn restart_bridge(app: AppHandle) -> Result<(), String> {
     kill_bridge(&app);
-    // Give the OS a moment to release the listen socket before respawning.
+    // kill_tree() has already fired; give the OS time to release the listen
+    // socket before spawning a new instance.  600 ms is conservative but safe
+    // — on Windows taskkill runs asynchronously so we need the headroom.
     tokio::time::sleep(Duration::from_millis(600)).await;
     spawn_bridge(&app)
 }
@@ -222,7 +343,10 @@ fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
-// ── tray + window behaviour ────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// tray + window behaviour
+// ---------------------------------------------------------------------------
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -277,12 +401,17 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// entry point
+// ---------------------------------------------------------------------------
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(BridgeState {
             child: Mutex::new(None),
             gen: AtomicU64::new(0),
+            stopping: AtomicBool::new(false), // ← new field
         })
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
