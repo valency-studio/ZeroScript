@@ -227,20 +227,33 @@ def build_linux(ver):
     apps.mkdir(parents=True)
     shutil.copy2(appdir / "ZeroScriptBridge.desktop", apps / "zeroscript.desktop")
 
-    # config.json is intentionally NOT bundled into the AppImage: the whole
-    # mount is read-only, so the bridge keeps config/logs in ~/.zeroscript and
-    # uses its built-in default (StudioMCP via launch_studio_mcp) on first run.
     PACKAGES.mkdir(parents=True, exist_ok=True)
     tool = DIST / "appimagetool-x86_64.AppImage"
     if not tool.exists():
+        log("downloading appimagetool...")
         run([
             "curl", "-L", "-o", str(tool),
             "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage",
         ])
+        # Verify the download succeeded and file is not empty
+        if not tool.exists() or tool.stat().st_size == 0:
+            sys.exit(f"Failed to download appimagetool: {tool}")
+    
     tool.chmod(0o755)
-    # --appimage-extract-and-run avoids requiring FUSE on the CI runner.
-    run([str(tool), "--appimage-extract-and-run", str(appdir),
-         str(PACKAGES / f"ZeroScript-{ver}-x86_64.AppImage")])
+    
+    # Verify the tool is executable
+    if not os.access(tool, os.X_OK):
+        log("WARNING: appimagetool is not executable, attempting to fix permissions")
+        tool.chmod(0o755)
+    
+    try:
+        # --appimage-extract-and-run avoids requiring FUSE on the CI runner.
+        run([str(tool), "--appimage-extract-and-run", str(appdir),
+             str(PACKAGES / f"ZeroScript-{ver}-x86_64.AppImage")])
+    except subprocess.CalledProcessError as e:
+        log(f"ERROR: appimagetool failed with exit code {e.returncode}")
+        log("This may be due to missing system dependencies or FUSE support.")
+        sys.exit(f"AppImage creation failed: {e}")
 
 
 def main():
