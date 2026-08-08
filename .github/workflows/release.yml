@@ -206,5 +206,8 @@ jobs:
           tag_name: ${{ needs.release.outputs.tag }}
           files: |
             zeroscript-desktop/src-tauri/target/release/bundle/**/*.exe
+            zeroscript-desktop/src-tauri/target/release/bundle/**/*.msi
             zeroscript-desktop/src-tauri/target/release/bundle/**/*.dmg
+            zeroscript-desktop/src-tauri/target/release/bundle/**/*.app
+            zeroscript-desktop/src-tauri/target/release/bundle/**/*.deb
             zeroscript-desktop/src-tauri/target/release/bundle/**/*.AppImage
