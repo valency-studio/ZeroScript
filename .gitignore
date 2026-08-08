@@ -8,6 +8,8 @@ docs/
 # Zip files
 *.zip
 
+dist/
+
 # Local dev / diagnostic tools
 probe.pylogs/
 

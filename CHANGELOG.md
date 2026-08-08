@@ -6,6 +6,50 @@ Format changelog mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1
 
 ---
 
+## [1.0.2] — Penyempurnaan Desktop GUI
+
+**Penyempurnaan besar pada antarmuka dan manajemen proses Desktop GUI.**
+
+### Added
+
+* **Panduan Quick Start di Dashboard**
+
+  * Kartu langkah demi langkah: mulai bridge, sambungkan Roblox Studio, buka situs AI chat.
+  * Muncul hanya ketika ada komponen yang belum siap dan hilang otomatis setelah semuanya terhubung.
+
+* **Halaman About didesain ulang**
+
+  * Merender file README dan catatan rilis terbaru langsung di aplikasi.
+  * Pemeriksa update dengan tombol "Check now" dan "Download".
+  * Tombol "Copy version info" untuk mempermudah pelaporan bug.
+  * Tombol "Open folder" untuk membuka direktori data aplikasi (command baru `open_path` di Rust).
+  * Ikon SVG inline, kredit, dan ringkasan lisensi MIT.
+
+* **Perbaikan manajemen proses bridge di `lib.rs`**
+
+  * PID bridge dilacak terpisah karena `CommandChild::kill()` hanya menghentikan proses langsung, sedangkan sidecar PyInstaller menciptakan proses child tambahan.
+  * `kill_process_tree` baru: `taskkill /F /T` di Windows, `pkill -P` berulang + `kill -KILL` di macOS/Linux.
+
+### Changed
+
+* **Bugfix race condition Stop → Start**
+
+  * Generasi proses di-invalidasi sebelum proses dihentikan, sehingga event `Terminated` lama tidak lagi membersihkan status bridge yang baru.
+  * Status berhenti manual vs crash dilaporkan lebih akurat ke UI.
+
+* **Pemformatan ulang kode TypeScript dan Rust**
+
+  * Konsistensi gaya, guard clauses, dan pemisahan bagian dengan komentar terstruktur.
+  * Error message Rust yang lebih deskriptif.
+
+* **Stylesheet diperbarui**
+
+  * Sidebar dengan `backdrop-filter` blur, sudut membulat lebih besar, penyempurnaan warna dan bayangan.
+
+* `.gitignore` kini mengabaikan `dist/`.
+
+---
+
 ## [1.0.1] — Perbaikan Bug
 
 **Perbaikan bug pada tombol Start Bridge di Desktop GUI.**

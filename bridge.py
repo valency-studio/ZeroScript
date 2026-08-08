@@ -83,7 +83,7 @@ def _enable_ansi_colors():
 HOST = "127.0.0.1"
 # Keep in sync with zeroscript-extension/manifest.json "version" - printed at
 # startup so a user's terminal output alone tells us which build they're on.
-BRIDGE_VERSION = "1.0.1"
+BRIDGE_VERSION = "1.0.2"
 PORT = int(os.environ.get("ZS_BRIDGE_PORT", "17613"))
 
 

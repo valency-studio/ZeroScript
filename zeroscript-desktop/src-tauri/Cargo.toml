@@ -1,6 +1,6 @@
 [package]
 name = "zeroscript-desktop"
-version = "1.0.1"
+version = "1.0.2"
 description = "ZeroScript Desktop - modern GUI for the ZeroScript bridge"
 authors = ["ZeroScript"]
 edition = "2021"

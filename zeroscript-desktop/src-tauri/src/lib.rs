@@ -1,80 +1,69 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // ---------------------------------------------------------------------------
-//  ZeroScript Desktop backend.
+// ZeroScript Desktop backend.
 //
-//  Manages the ZeroScript BRIDGE (the PyInstaller sidecar built from
-//  bridge.py) as a hidden child process:
-//    - start/stop/restart commands, streamed stdout/stderr -> "bridge-log"
-//      events for the Logs view, exit detection -> "bridge-exit".
-//    - the bridge gets ZS_DATA_DIR set to Tauri's per-OS app data dir, so
-//      config.json + logs/ live in a proper user location on every platform.
-//  Plus: system tray (minimize-to-tray), single-instance guard, and the
-//  autostart plugin (on-login toggle from the Settings view).
+// Responsibilities:
+// - Manage the ZeroScript Bridge sidecar.
+// - Start / stop / restart the bridge.
+// - Stream bridge stdout/stderr to the frontend.
+// - Detect bridge exits.
+// - Store bridge configuration/logs in the OS-specific app data directory.
+// - System tray integration.
+// - Single-instance protection.
+// - Autostart support.
 // ---------------------------------------------------------------------------
+
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
+
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-/// The running bridge child process, if any, plus a generation counter.
+// ============================================================================
+// Bridge state
+// ============================================================================
+
+/// State of the currently running Bridge process.
 ///
-/// Every spawn bumps `gen` and its task captures the value; the `Terminated`
-/// handler only clears state when the generation still matches. Without this,
-/// a Stop -> quick Start could let the OLD task's Terminated event clear the
-/// NEW child from state (GUI would report "stopped" while a bridge runs, and
-/// a later Stop would not kill it).
+/// `generation` prevents an old bridge task from clearing the state of a
+/// newer bridge after a fast Stop -> Start sequence.
 ///
-/// `stopping` is set to `true` just before an intentional kill so the
-/// background task can tell the frontend this was a manual stop, not a crash.
+/// `pid` is kept separately because CommandChild::kill() only targets the
+/// immediate process. PyInstaller one-file applications can create additional
+/// child processes which must also be terminated.
 struct BridgeState {
     child: Mutex<Option<CommandChild>>,
-    gen: AtomicU64,
-    stopping: AtomicBool,
+    pid: Mutex<Option<u32>>,
+    generation: AtomicU64,
 }
 
-// ---------------------------------------------------------------------------
-// bridge-exit event payload
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Application data
+// ============================================================================
 
-/// Payload for the "bridge-exit" event.
+/// Returns the OS-specific application data directory.
 ///
-/// FRONTEND MIGRATION NOTE: previously this event carried a bare `i32` exit
-/// code. It now carries `{ code: number, intentional: boolean }`.
-/// Update your listener accordingly:
-///
-///   listen<BridgeExitPayload>("bridge-exit", ({ payload }) => {
-///     if (!payload.intentional) { /* handle crash */ }
-///   });
-#[derive(Clone, serde::Serialize)]
-struct BridgeExitPayload {
-    /// OS exit code of the bridge process (-1 if unknown).
-    code: i32,
-    /// true  = user explicitly stopped/restarted the bridge.
-    /// false = process crashed or was killed externally.
-    intentional: bool,
-}
-
-// ---------------------------------------------------------------------------
-// app data dir + settings
-// ---------------------------------------------------------------------------
-
-/// Per-OS data directory for config.json + logs (via ZS_DATA_DIR).
+/// This directory is used for:
+/// - config.json
+/// - logs/
+/// - desktop-settings.json
 fn data_dir(app: &AppHandle) -> PathBuf {
     app.path()
         .app_data_dir()
         .unwrap_or_else(|_| std::env::temp_dir())
 }
 
-/// Per-app GUI settings persisted as JSON next to config.json. Small and
-/// dependency-free on purpose (no store plugin): a single struct the Settings
-/// view reads and writes.
+// ============================================================================
+// Desktop settings
+// ============================================================================
+
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 #[serde(default)]
 struct DesktopSettings {
@@ -88,16 +77,29 @@ fn settings_path(app: &AppHandle) -> PathBuf {
 fn read_settings(app: &AppHandle) -> DesktopSettings {
     std::fs::read_to_string(settings_path(app))
         .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
+        .and_then(|content| serde_json::from_str::<DesktopSettings>(&content).ok())
         .unwrap_or_default()
 }
 
-fn write_settings(app: &AppHandle, s: &DesktopSettings) -> Result<(), String> {
-    let dir = data_dir(app);
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let json = serde_json::to_string_pretty(s).map_err(|e| e.to_string())?;
-    std::fs::write(settings_path(app), json).map_err(|e| e.to_string())
+fn write_settings(
+    app: &AppHandle,
+    settings: &DesktopSettings,
+) -> Result<(), String> {
+    let directory = data_dir(app);
+
+    std::fs::create_dir_all(&directory)
+        .map_err(|error| format!("failed to create data directory: {error}"))?;
+
+    let json = serde_json::to_string_pretty(settings)
+        .map_err(|error| format!("failed to serialize settings: {error}"))?;
+
+    std::fs::write(settings_path(app), json)
+        .map_err(|error| format!("failed to write settings: {error}"))
 }
+
+// ============================================================================
+// Tauri commands - settings
+// ============================================================================
 
 #[tauri::command]
 fn get_settings(app: AppHandle) -> DesktopSettings {
@@ -105,153 +107,359 @@ fn get_settings(app: AppHandle) -> DesktopSettings {
 }
 
 #[tauri::command]
-fn set_start_bridge_on_launch(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut s = read_settings(&app);
-    s.start_bridge_on_launch = enabled;
-    write_settings(&app, &s)
+fn set_start_bridge_on_launch(
+    app: AppHandle,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut settings = read_settings(&app);
+
+    settings.start_bridge_on_launch = enabled;
+
+    write_settings(&app, &settings)
 }
 
-// ---------------------------------------------------------------------------
-// process-tree kill  ← FIXED: was only killing the direct child
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Bridge lifecycle
+// ============================================================================
 
-/// Kill a process AND all its descendants.
+/// Starts the ZeroScript Bridge.
 ///
-/// `CommandChild::kill()` only signals the **direct** child process.
-/// PyInstaller sidecars unpack and exec a separate Python runtime; if we only
-/// kill the launcher that Python process survives as an orphan, continues
-/// holding the listen socket, and a subsequent `start_bridge` / restart will
-/// fail to bind the port.
+/// This function is intentionally idempotent:
+/// calling it while the bridge is already running does nothing.
+fn spawn_bridge(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<BridgeState>();
+
+    // ------------------------------------------------------------------------
+    // Check whether a bridge is already running.
+    // ------------------------------------------------------------------------
+
+    {
+        let child_guard = state
+            .child
+            .lock()
+            .map_err(|_| "bridge child mutex poisoned".to_string())?;
+
+        if child_guard.is_some() {
+            return Ok(());
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Create a new generation.
+    // ------------------------------------------------------------------------
+
+    let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+
+    // ------------------------------------------------------------------------
+    // Prepare sidecar environment.
+    // ------------------------------------------------------------------------
+
+    let directory = data_dir(app);
+
+    std::fs::create_dir_all(&directory)
+        .map_err(|error| format!("failed to create bridge data directory: {error}"))?;
+
+    let sidecar = app
+        .shell()
+        .sidecar("ZeroScriptBridge")
+        .map_err(|error| format!("sidecar lookup failed: {error}"))?
+        .env("ZS_DATA_DIR", &directory);
+
+    // ------------------------------------------------------------------------
+    // Spawn bridge.
+    // ------------------------------------------------------------------------
+
+    let (mut receiver, child) = sidecar
+        .spawn()
+        .map_err(|error| format!("bridge spawn failed: {error}"))?;
+
+    let pid = child.pid();
+
+    // ------------------------------------------------------------------------
+    // Store process state.
+    //
+    // Re-check after spawning because another thread could theoretically
+    // have started the bridge while we were preparing the sidecar.
+    // ------------------------------------------------------------------------
+
+    {
+        let mut child_guard = state
+            .child
+            .lock()
+            .map_err(|_| "bridge child mutex poisoned".to_string())?;
+
+        if child_guard.is_some() {
+            // Another bridge won the race.
+            let _ = child.kill();
+
+            return Ok(());
+        }
+
+        *child_guard = Some(child);
+    }
+
+    {
+        let mut pid_guard = state
+            .pid
+            .lock()
+            .map_err(|_| "bridge PID mutex poisoned".to_string())?;
+
+        *pid_guard = Some(pid);
+    }
+
+    // ------------------------------------------------------------------------
+    // Monitor bridge events asynchronously.
+    // ------------------------------------------------------------------------
+
+    let app_handle = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let event = receiver.recv().await;
+
+            match event {
+                // ------------------------------------------------------------
+                // stdout / stderr
+                // ------------------------------------------------------------
+
+                Some(CommandEvent::Stdout(bytes))
+                | Some(CommandEvent::Stderr(bytes)) => {
+                    let output = String::from_utf8_lossy(&bytes).to_string();
+
+                    let _ = app_handle.emit("bridge-log", output);
+                }
+
+                // ------------------------------------------------------------
+                // Process terminated
+                // ------------------------------------------------------------
+
+                Some(CommandEvent::Terminated(payload)) => {
+                    let exit_code = payload.code.unwrap_or(-1);
+
+                    let _ = app_handle.emit("bridge-exit", exit_code);
+
+                    clear_bridge_state_if_current(
+                        &app_handle,
+                        generation,
+                    );
+
+                    break;
+                }
+
+                // ------------------------------------------------------------
+                // Shell/plugin error
+                // ------------------------------------------------------------
+
+                Some(CommandEvent::Error(error)) => {
+                    let _ = app_handle.emit(
+                        "bridge-log",
+                        format!("[bridge error] {error}\n"),
+                    );
+                }
+
+                // ------------------------------------------------------------
+                // Other shell events
+                // ------------------------------------------------------------
+
+                Some(_) => {}
+
+                // ------------------------------------------------------------
+                // Channel closed unexpectedly
+                // ------------------------------------------------------------
+
+                None => {
+                    let _ = app_handle.emit("bridge-exit", -1);
+
+                    clear_bridge_state_if_current(
+                        &app_handle,
+                        generation,
+                    );
+
+                    break;
+                }
+            }
+        }
+    });
+
+    let _ = app.emit(
+        "bridge-state",
+        serde_json::json!({
+            "running": true,
+            "pid": pid,
+        }),
+    );
+
+    Ok(())
+}
+
+/// Clears bridge state only if it still belongs to the same generation.
 ///
-/// * **Windows** — `taskkill /F /T /PID <pid>` (force + full tree recursion).
-///   CREATE_NO_WINDOW prevents a console flash.
-/// * **macOS / Linux** — send SIGKILL directly to the PID, then also to the
-///   process *group* (`-<pgid>`). PyInstaller typically becomes the group
-///   leader so the group kill reaches all its worker children. The second
-///   command fails gracefully when the bridge is not a group leader.
-fn kill_tree(pid: u32) {
+/// This prevents:
+///
+/// Start A
+/// -> Stop A
+/// -> Start B
+/// -> old A termination event
+///
+/// from accidentally clearing Bridge B.
+fn clear_bridge_state_if_current(
+    app: &AppHandle,
+    generation: u64,
+) {
+    let state = app.state::<BridgeState>();
+
+    if state.generation.load(Ordering::SeqCst) != generation {
+        return;
+    }
+
+    if let Ok(mut child_guard) = state.child.lock() {
+        *child_guard = None;
+    }
+
+    if let Ok(mut pid_guard) = state.pid.lock() {
+        *pid_guard = None;
+    }
+
+    let _ = app.emit("bridge-state", false);
+}
+
+// ============================================================================
+// Process tree termination
+// ============================================================================
+
+/// Terminates the entire bridge process tree.
+///
+/// Windows:
+///     taskkill /T /F
+///
+/// Unix:
+///     recursively terminate descendants first, then the parent.
+///
+/// This is required because a PyInstaller one-file executable can create
+/// additional child processes.
+fn kill_process_tree(pid: u32) {
+    if pid == 0 {
+        return;
+    }
+
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        const NO_WINDOW: u32 = 0x0800_0000;
-        // Errors are intentionally ignored: the process may already be dead.
         let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/T", "/PID", &pid.to_string()])
-            .creation_flags(NO_WINDOW)
-            .spawn();
+            .args([
+                "/PID",
+                &pid.to_string(),
+                "/T",
+                "/F",
+            ])
+            .output();
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        // Direct SIGKILL to the process itself.
-        let _ = std::process::Command::new("kill")
-            .args(["-9", &pid.to_string()])
-            .spawn();
-        // SIGKILL to the process group (pgid == pid when bridge is leader).
-        // Harmless if the bridge is not the group leader.
-        let _ = std::process::Command::new("kill")
-            .args(["-9", &format!("-{pid}")])
-            .spawn();
+        kill_unix_process_tree(pid);
     }
 }
 
-// ---------------------------------------------------------------------------
-// spawn / kill bridge
-// ---------------------------------------------------------------------------
+#[cfg(not(target_os = "windows"))]
+fn kill_unix_process_tree(pid: u32) {
+    use std::process::Command;
 
-/// Spawn the bridge sidecar (hidden, no console window) and start streaming
-/// its output to the frontend. No-op if it is already running.
-fn spawn_bridge(app: &AppHandle) -> Result<(), String> {
-    let state = app.state::<BridgeState>();
-    let mut guard = state.child.lock().unwrap();
-    if guard.is_some() {
-        return Ok(());
-    }
-    let gen = state.gen.fetch_add(1, Ordering::SeqCst) + 1;
-    let dir = data_dir(app);
-    let sidecar = app
-        .shell()
-        .sidecar("ZeroScriptBridge")
-        .map_err(|e| format!("sidecar lookup failed: {e}"))?
-        .env("ZS_DATA_DIR", &dir);
-    let (mut rx, child) = sidecar.spawn().map_err(|e| format!("spawn failed: {e}"))?;
-    *guard = Some(child);
-    drop(guard);
+    // First attempt to recursively terminate descendants.
+    //
+    // `pkill -P` only handles direct children, so repeat it a few times
+    // to catch deeper process trees.
+    for _ in 0..4 {
+        let result = Command::new("pkill")
+            .args([
+                "-TERM",
+                "-P",
+                &pid.to_string(),
+            ])
+            .output();
 
-    let app2 = app.clone();
-    tauri::async_runtime::spawn(async move {
-        while let Some(event) = rx.recv().await {
-            match event {
-                CommandEvent::Stdout(bytes) | CommandEvent::Stderr(bytes) => {
-                    let line = String::from_utf8_lossy(&bytes).to_string();
-                    let _ = app2.emit("bridge-log", line);
-                }
-                CommandEvent::Terminated(payload) => {
-                    let st = app2.state::<BridgeState>();
-
-                    // Atomically consume the stopping flag.
-                    // true  = stop was requested by the user.
-                    // false = unexpected crash / external kill.
-                    let intentional = st.stopping.swap(false, Ordering::SeqCst);
-                    let code = payload.code.unwrap_or(-1);
-                    let _ = app2.emit("bridge-exit", BridgeExitPayload { code, intentional });
-
-                    // Only clear state when no NEWER child has replaced this
-                    // one (see the generation counter doc on BridgeState).
-                    if st.gen.load(Ordering::SeqCst) == gen {
-                        *st.child.lock().unwrap() = None;
-                    }
-                    break;
-                }
-                _ => {}
-            }
+        if result.is_err() {
+            break;
         }
-    });
-    Ok(())
+
+        std::thread::sleep(Duration::from_millis(50));
+    }
+
+    // Give children a short opportunity to terminate gracefully.
+    std::thread::sleep(Duration::from_millis(100));
+
+    // Force-kill remaining descendants.
+    let _ = Command::new("pkill")
+        .args([
+            "-KILL",
+            "-P",
+            &pid.to_string(),
+        ])
+        .output();
+
+    // Finally terminate the parent.
+    let _ = Command::new("kill")
+        .args([
+            "-KILL",
+            &pid.to_string(),
+        ])
+        .output();
 }
 
-/// FIXED: was only calling child.kill() which misses PyInstaller subprocesses.
-///
-/// New order of operations:
-///  1. Set `stopping = true` BEFORE taking the child so the Terminated
-///     handler sees it even if the process dies between take() and kill_tree().
-///  2. Take the child out of the mutex (state appears "stopped" immediately).
-///  3. Call kill_tree(pid) — OS-level, kills the full process tree.
-///  4. Call child.kill() — belt-and-suspenders via the plugin handle.
-///
-/// If there is no child, `stopping` is reset so the flag doesn't leak.
+// ============================================================================
+// Stop bridge
+// ============================================================================
+
 fn kill_bridge(app: &AppHandle) {
     let state = app.state::<BridgeState>();
 
-    // Set BEFORE locking so the Terminated handler can never miss it,
-    // even on a very fast process death.
-    state.stopping.store(true, Ordering::SeqCst);
+    // ------------------------------------------------------------------------
+    // Invalidate the current generation BEFORE killing the process.
+    //
+    // This is important:
+    //
+    // Terminated event can arrive asynchronously while kill_bridge() is
+    // executing. Incrementing generation first guarantees that the old
+    // termination handler cannot accidentally clear a future process.
+    // ------------------------------------------------------------------------
 
-    let mut guard = state.child.lock().unwrap();
-    if let Some(child) = guard.take() {
-        let pid = child.pid();
-        // Step 1: OS-level kill of the full process tree.
-        kill_tree(pid);
-        // Step 2: plugin-level kill as a belt-and-suspenders fallback.
-        // FIXED: error was silently discarded; now we at least log it.
-        if let Err(e) = child.kill() {
-            // The process is likely already dead (kill_tree succeeded).
-            // Emit as a debug log rather than an error.
-            let _ = app.emit(
-                "bridge-log",
-                format!("[gui] child.kill() after kill_tree: {e}\n"),
-            );
-        }
-    } else {
-        // Nothing was running — clear the flag we set above so it doesn't
-        // accidentally mark a future Terminated event as intentional.
-        state.stopping.store(false, Ordering::SeqCst);
+    state.generation.fetch_add(1, Ordering::SeqCst);
+
+    // ------------------------------------------------------------------------
+    // Take ownership of state without holding locks while killing.
+    // ------------------------------------------------------------------------
+
+    let child = match state.child.lock() {
+        Ok(mut guard) => guard.take(),
+        Err(_) => None,
+    };
+
+    let pid = match state.pid.lock() {
+        Ok(mut guard) => guard.take(),
+        Err(_) => None,
+    };
+
+    // ------------------------------------------------------------------------
+    // Kill entire process tree.
+    // ------------------------------------------------------------------------
+
+    if let Some(pid) = pid {
+        kill_process_tree(pid);
     }
+
+    // ------------------------------------------------------------------------
+    // Fallback: kill immediate child through Tauri.
+    // ------------------------------------------------------------------------
+
+    if let Some(child) = child {
+        let _ = child.kill();
+    }
+
+    let _ = app.emit("bridge-state", false);
 }
 
-// ---------------------------------------------------------------------------
-// tauri commands
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Tauri commands - bridge
+// ============================================================================
 
 #[tauri::command]
 fn start_bridge(app: AppHandle) -> Result<(), String> {
@@ -261,42 +469,70 @@ fn start_bridge(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn stop_bridge(app: AppHandle) -> Result<(), String> {
     kill_bridge(&app);
+
     Ok(())
 }
 
 #[tauri::command]
 async fn restart_bridge(app: AppHandle) -> Result<(), String> {
     kill_bridge(&app);
-    // kill_tree() has already fired; give the OS time to release the listen
-    // socket before spawning a new instance.  600 ms is conservative but safe
-    // — on Windows taskkill runs asynchronously so we need the headroom.
+
+    // Allow the operating system to release the listening socket.
     tokio::time::sleep(Duration::from_millis(600)).await;
+
     spawn_bridge(&app)
 }
 
 #[tauri::command]
 fn bridge_running(state: State<'_, BridgeState>) -> bool {
-    state.child.lock().unwrap().is_some()
+    state
+        .child
+        .lock()
+        .map(|guard| guard.is_some())
+        .unwrap_or(false)
 }
+
+// ============================================================================
+// Data directory
+// ============================================================================
 
 #[tauri::command]
 fn get_data_dir(app: AppHandle) -> String {
-    data_dir(&app).to_string_lossy().to_string()
+    data_dir(&app)
+        .to_string_lossy()
+        .to_string()
 }
 
 #[tauri::command]
 fn open_data_dir(app: AppHandle) -> Result<(), String> {
-    let dir = data_dir(&app);
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let directory = data_dir(&app);
+
+    std::fs::create_dir_all(&directory)
+        .map_err(|error| error.to_string())?;
+
     #[cfg(target_os = "windows")]
-    let res = std::process::Command::new("explorer").arg(&dir).spawn();
+    let result = std::process::Command::new("explorer")
+        .arg(&directory)
+        .spawn();
+
     #[cfg(target_os = "macos")]
-    let res = std::process::Command::new("open").arg(&dir).spawn();
+    let result = std::process::Command::new("open")
+        .arg(&directory)
+        .spawn();
+
     #[cfg(target_os = "linux")]
-    let res = std::process::Command::new("xdg-open").arg(&dir).spawn();
-    res.map_err(|e| e.to_string())?;
+    let result = std::process::Command::new("xdg-open")
+        .arg(&directory)
+        .spawn();
+
+    result.map_err(|error| error.to_string())?;
+
     Ok(())
 }
+
+// ============================================================================
+// Application information
+// ============================================================================
 
 #[derive(serde::Serialize)]
 struct AppInfo {
@@ -314,44 +550,78 @@ fn get_app_info(app: AppHandle) -> AppInfo {
     }
 }
 
-/// Open a URL in the user's default browser (About view: update downloads,
-/// GitHub, support links).
+// ============================================================================
+// URL handling
+// ============================================================================
+
+/// Opens an HTTP(S) URL in the default browser.
+///
+/// Only http:// and https:// URLs are accepted.
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    // The URL is handed to `cmd /c start` unquoted on Windows, where & | ^ < >
-    // are command metacharacters. Only http(s) URLs are ever opened by this
-    // app (repo, releases, issues, support), so reject anything that could be
-    // interpreted by the shell.
-    if !(url.starts_with("https://") || url.starts_with("http://")) {
-        return Err("unsafe URL".into());
+    let trimmed = url.trim();
+
+    if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
+        return Err("only HTTP(S) URLs are allowed".into());
     }
+
     #[cfg(target_os = "windows")]
     {
-        if url.chars().any(|c| matches!(c, '&' | '|' | '^' | '<' | '>' | '"')) {
+        // Prevent shell metacharacters from reaching `cmd`.
+        if trimmed
+            .chars()
+            .any(|character| {
+                matches!(
+                    character,
+                    '&'
+                        | '|'
+                        | '^'
+                        | '<'
+                        | '>'
+                        | '"'
+                        | '\n'
+                        | '\r'
+                )
+            })
+        {
             return Err("unsafe URL".into());
         }
     }
+
     #[cfg(target_os = "windows")]
-    let res = std::process::Command::new("cmd")
-        .args(["/c", "start", "", &url])
+    let result = std::process::Command::new("cmd")
+        .args([
+            "/c",
+            "start",
+            "",
+            trimmed,
+        ])
         .spawn();
+
     #[cfg(target_os = "macos")]
-    let res = std::process::Command::new("open").arg(&url).spawn();
+    let result = std::process::Command::new("open")
+        .arg(trimmed)
+        .spawn();
+
     #[cfg(target_os = "linux")]
-    let res = std::process::Command::new("xdg-open").arg(&url).spawn();
-    res.map_err(|e| e.to_string())?;
+    let result = std::process::Command::new("xdg-open")
+        .arg(trimmed)
+        .spawn();
+
+    result.map_err(|error| error.to_string())?;
+
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// tray + window behaviour
-// ---------------------------------------------------------------------------
+// ============================================================================
+// System tray
+// ============================================================================
 
 fn show_main(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
-        let _ = w.show();
-        let _ = w.unminimize();
-        let _ = w.set_focus();
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
     }
 }
 
@@ -361,30 +631,80 @@ fn quit(app: &AppHandle) {
 }
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "Show ZeroScript", true, None::<&str>)?;
-    let start = MenuItem::with_id(app, "start", "Start Bridge", true, None::<&str>)?;
-    let stop = MenuItem::with_id(app, "stop", "Stop Bridge", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", "Quit ZeroScript", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &start, &stop, &quit_item])?;
+    let show = MenuItem::with_id(
+        app,
+        "show",
+        "Show ZeroScript",
+        true,
+        None::<&str>,
+    )?;
+
+    let start = MenuItem::with_id(
+        app,
+        "start",
+        "Start Bridge",
+        true,
+        None::<&str>,
+    )?;
+
+    let stop = MenuItem::with_id(
+        app,
+        "stop",
+        "Stop Bridge",
+        true,
+        None::<&str>,
+    )?;
+
+    let quit_item = MenuItem::with_id(
+        app,
+        "quit",
+        "Quit ZeroScript",
+        true,
+        None::<&str>,
+    )?;
+
+    let menu = Menu::with_items(
+        app,
+        &[&show, &start, &stop, &quit_item],
+    )?;
 
     let mut builder = TrayIconBuilder::new()
         .menu(&menu)
         .tooltip("ZeroScript")
-        .on_menu_event(|app, event| match event.id().as_ref() {
-            "show" => show_main(app),
-            "start" => {
-                if let Err(e) = spawn_bridge(app) {
-                    let _ = app.emit("bridge-log", format!("[gui] could not start bridge: {e}\n"));
+        .on_menu_event(|app, event| {
+            match event.id().as_ref() {
+                "show" => {
+                    show_main(app);
                 }
+
+                "start" => {
+                    if let Err(error) = spawn_bridge(app) {
+                        let _ = app.emit(
+                            "bridge-log",
+                            format!(
+                                "[gui] could not start bridge: {error}\n"
+                            ),
+                        );
+                    }
+                }
+
+                "stop" => {
+                    kill_bridge(app);
+                }
+
+                "quit" => {
+                    quit(app);
+                }
+
+                _ => {}
             }
-            "stop" => kill_bridge(app),
-            "quit" => quit(app),
-            _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            // Double-click on the tray icon (Windows) shows the window again.
-            use tauri::tray::MouseButton;
-            use tauri::tray::MouseButtonState;
+            use tauri::tray::{
+                MouseButton,
+                MouseButtonState,
+            };
+
             if let tauri::tray::TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -394,65 +714,120 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                 show_main(tray.app_handle());
             }
         });
+
     if let Some(icon) = app.default_window_icon().cloned() {
         builder = builder.icon(icon);
     }
+
     builder.build(app)?;
+
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// entry point
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Application entry point
+// ============================================================================
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // --------------------------------------------------------------------
+        // Shared application state
+        // --------------------------------------------------------------------
+
         .manage(BridgeState {
             child: Mutex::new(None),
-            gen: AtomicU64::new(0),
-            stopping: AtomicBool::new(false), // ← new field
+            pid: Mutex::new(None),
+            generation: AtomicU64::new(0),
         })
+
+        // --------------------------------------------------------------------
+        // Plugins
+        // --------------------------------------------------------------------
+
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_main(app);
-        }))
-        .invoke_handler(tauri::generate_handler![
-            start_bridge,
-            stop_bridge,
-            restart_bridge,
-            bridge_running,
-            get_data_dir,
-            open_data_dir,
-            get_app_info,
-            open_url,
-            get_settings,
-            set_start_bridge_on_launch,
-        ])
+
+        .plugin(
+            tauri_plugin_autostart::init(
+                MacosLauncher::LaunchAgent,
+                None,
+            ),
+        )
+
+        .plugin(
+            tauri_plugin_single_instance::init(
+                |app, _args, _cwd| {
+                    show_main(app);
+                },
+            ),
+        )
+
+        // --------------------------------------------------------------------
+        // Commands
+        // --------------------------------------------------------------------
+
+        .invoke_handler(
+            tauri::generate_handler![
+                start_bridge,
+                stop_bridge,
+                restart_bridge,
+                bridge_running,
+                get_data_dir,
+                open_data_dir,
+                get_app_info,
+                open_url,
+                get_settings,
+                set_start_bridge_on_launch,
+            ],
+        )
+
+        // --------------------------------------------------------------------
+        // Setup
+        // --------------------------------------------------------------------
+
         .setup(|app| {
             setup_tray(app.handle())?;
-            // Start the bridge automatically if the user enabled it in
-            // Settings - otherwise the app opens to an offline dashboard and
-            // the user has to click Start every time.
-            if read_settings(app.handle()).start_bridge_on_launch {
-                let _ = spawn_bridge(app.handle());
-            }
-            Ok(())
-        })
-        .on_window_event(|window, event| {
-            // Closing the window hides to tray instead of quitting.
-            if window.label() == "main" {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = window.hide();
+
+            let settings = read_settings(app.handle());
+
+            if settings.start_bridge_on_launch {
+                if let Err(error) = spawn_bridge(app.handle()) {
+                    let _ = app.emit(
+                        "bridge-log",
+                        format!(
+                            "[startup] could not start bridge: {error}\n"
+                        ),
+                    );
                 }
             }
+
+            Ok(())
         })
+
+        // --------------------------------------------------------------------
+        // Window behaviour
+        // --------------------------------------------------------------------
+
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                // Closing the main window hides the application to tray.
+                api.prevent_close();
+
+                let _ = window.hide();
+            }
+        })
+
+        // --------------------------------------------------------------------
+        // Build + runtime
+        // --------------------------------------------------------------------
+
         .build(tauri::generate_context!())
         .expect("error while building ZeroScript")
         .run(|app, event| {
-            // Always stop the bridge child when the app really exits.
             if let RunEvent::Exit = event {
                 kill_bridge(app);
             }

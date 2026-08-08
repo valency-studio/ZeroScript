@@ -1,7 +1,7 @@
 {
   "name": "zeroscript-desktop",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "description": "ZeroScript Desktop - modern GUI for the ZeroScript bridge (Tauri + Vite).",
   "scripts": {
