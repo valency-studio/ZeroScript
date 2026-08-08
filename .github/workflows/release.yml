@@ -1,0 +1,69 @@
+# Manual release workflow: run it from the Actions tab ("Run workflow").
+# Resolves the version from manifest.json by default, pulls the matching
+# section out of CHANGELOG.md as release notes, and creates the tag + release.
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.0.0). Leave empty to use the version in zeroscript-extension/manifest.json."
+        required: false
+        type: string
+      draft:
+        description: "Create the release as a draft instead of publishing it."
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: "Mark the release as a pre-release."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and tag
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p "require('./zeroscript-extension/manifest.json').version")
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog section as release notes
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VESC=$(printf '%s' "$VERSION" | sed 's/[.[\*^$]/\\&/g')
+          notes=$(awk -v re="^## \\[${VESC}\\]" '
+            $0 ~ re { found=1; next }
+            found && $0 ~ /^## / { exit }
+            found { print }
+          ' CHANGELOG.md)
+          if [ -z "$notes" ]; then
+            echo "::warning::No CHANGELOG.md section found for [${VERSION}] - using a fallback message."
+            notes="Release v${VERSION} of ZeroScript."
+          fi
+          printf '%s\n' "$notes" > /tmp/release-notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "ZeroScript v${{ steps.version.outputs.version }}" \
+            --notes-file /tmp/release-notes.md \
+            ${{ inputs.draft == true && '--draft' || '' }} \
+            ${{ inputs.prerelease == true && '--prerelease' || '' }}

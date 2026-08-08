@@ -1,126 +1,755 @@
-<div align="center">
-  <h1>🚀 ZeroScript: AI-to-Studio Control Bridge</h1>
-  <p><strong>Kendalikan Roblox Studio sepenuhnya melalui percakapan AI Anda.</strong></p>
-  <p>
-    <a href="https://github.com/sebattfg/ZeroScript-Free"><img src="https://img.shields.io/badge/Credit-Original%20Project%20(ZeroScript--Free)-blue?style=for-the-badge" alt="Original Project"></a>
-    <img src="https://img.shields.io/badge/Platform-Roblox%20Studio-red?style=for-the-badge&logo=roblox" alt="Roblox Studio">
-    <img src="https://img.shields.io/badge/Protocol-MCP%20(Model%20Context%20Protocol)-purple?style=for-the-badge" alt="MCP">
-    <img src="https://img.shields.io/badge/License-MIT License-success?style=for-the-badge" alt="License">
-  </p>
-</div>
+# ZeroScript
+
+> **💡 Filosofi:** Bayangkan Anda bisa menyuruh ChatGPT, DeepSeek, Claude, atau AI favorit Anda untuk membuat Part, menulis script Luau, mengeksekusi kode, hingga mengambil screenshot di Roblox Studio — cukup melalui situs AI Chat yang biasa Anda gunakan.
+>
+> **ZeroScript mewujudkannya tanpa proses build yang rumit.**
+
+**ZeroScript** adalah ekosistem yang menghubungkan **AI Chat** dengan **Roblox Studio** melalui **MCP (Model Context Protocol)**.
+
+Dengan ZeroScript, agen AI dapat berinteraksi dengan Roblox Studio secara real-time untuk melakukan berbagai pekerjaan, seperti:
+
+* Membuat dan memodifikasi objek.
+* Menulis dan mengedit script Luau.
+* Menjalankan `execute_luau`.
+* Membaca informasi dari Roblox Studio.
+* Mengambil screenshot Studio.
+* Menjalankan berbagai MCP tools yang tersedia.
+* Menggunakan MCP server tambahan dari pihak ketiga.
 
 ---
 
-> **💡 Filosofi:** Bayangkan Anda bisa menyuruh ChatGPT, DeepSeek, atau Claude untuk membuat part, menulis script Luau, mengeksekusi kode, hingga mengambil screenshot di Roblox Studio—hanya dengan mengetik di situs chat AI favorit Anda. ZeroScript mewujudkan itu tanpa proses *build* yang rumit.
-
-ZeroScript adalah ekosistem yang menghubungkan situs AI Chat dengan Roblox Studio melalui **MCP (Model Context Protocol)**. Agen AI dapat melakukan *spawning* objek, menulis script Luau, menjalankan `execute_luau`, mengambil screenshot Studio, dan banyak lagi secara real-time.
-
 ## 🧩 Arsitektur Sistem
 
-ZeroScript terdiri dari tiga komponen utama yang saling terhubung secara mulus:
+ZeroScript terdiri dari tiga komponen utama yang bekerja bersama:
 
-| Komponen | Deskripsi |
-| --- | --- |
-| 🌐 **`zeroscript-extension/`** | Ekstensi Chrome (MV3) yang dimuat secara *unpacked*. Berfungsi menyuntikkan "agen" ke situs AI chat dan menampilkan UI status/chips yang elegan. |
-| ⚙️ **`bridge.py`** | Server WebSocket lokal (`ws://127.0.0.1:17613`). Menjalankan MCP server sebagai proses stdio anak, menggabungkan *tool*-nya, dan merutekan perintah berdasarkan nama *tool*. |
-| 🔍 **`launch_studio_mcp.py`** | Utilitas pencari otomatis untuk `StudioMCP.exe` versi terbaru (mendukung Bloxstrap/Fishstrap) milik Roblox Studio. |
+| Komponen                       | Deskripsi                                                                                                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 🌐 **`zeroscript-extension/`** | Ekstensi Chrome Manifest V3 yang dimuat secara *unpacked*. Menyuntikkan agent ke situs AI Chat yang didukung dan menyediakan UI status serta tool chips.                                         |
+| ⚙️ **`bridge.py`**             | WebSocket bridge lokal (`ws://127.0.0.1:17613`) yang mengelola koneksi ekstensi, menjalankan MCP server sebagai proses stdio, menggabungkan tools, dan merutekan perintah berdasarkan nama tool. |
+| 🔍 **`launch_studio_mcp.py`**  | Utilitas untuk menemukan `StudioMCP.exe` versi terbaru secara otomatis, termasuk instalasi Roblox Studio melalui Bloxstrap/Fishstrap.                                                            |
+
+### 🔄 Alur Komunikasi
+
+```text
+┌─────────────────────┐
+│     AI Chat Site    │
+│ ChatGPT / Claude /  │
+│ DeepSeek / Gemini   │
+└──────────┬──────────┘
+           │
+           │ Browser Extension
+           ▼
+┌─────────────────────┐
+│ ZeroScript Extension│
+│      Manifest V3    │
+└──────────┬──────────┘
+           │
+           │ WebSocket
+           │ 127.0.0.1:17613
+           ▼
+┌─────────────────────┐
+│     bridge.py       │
+│   ZeroScript Bridge │
+└──────────┬──────────┘
+           │
+           │ MCP / stdio
+           ▼
+┌─────────────────────┐
+│   StudioMCP.exe     │
+│    Roblox Studio    │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│    Roblox Studio    │
+│      Game / Place   │
+└─────────────────────┘
+```
+
+---
 
 ## ✨ Fitur Unggulan
 
-- **🌐 Dukungan 30+ Situs AI Chat:** DeepSeek, Kimi, ChatGPT, Claude, Gemini, GLM (Z.ai), Qwen, Arena, Meta AI, Grok, Copilot, Perplexity, Mistral, Poe, HuggingChat, Pi, You.com, Phind, Blackbox, LMSYS, Duck.ai, Groq, Google AI Studio, OpenRouter, Cohere, T3 Chat, Together AI, v0, ClickUp, dan lainnya.
-- **🧠 Mode Generic:** Aktifkan di pengaturan untuk digunakan di situs AI apa pun yang belum didukung secara resmi.
-- **🔄 Agentic Loop In-Chat:** Model AI akan menerima sistem prompt, memancarkan perintah ZeroScript, dan menampilkan hasil *tool* sebagai *chips* yang rapi di dalam balasan chat.
-- **🛡️ Penanganan Kegagalan Otomatis:** MCP server yang mati akan di-*restart* otomatis. *Tool call* yang terputus akan dicoba ulang. Port yang dibajak (seperti oleh *ropilot*) akan dideteksi dan dibersihkan.
-- **🧩 Dukungan MCP Tambahan:** Tambah atau hapus MCP server eksternal (mis. Blender) langsung melalui menu ekstensi—tanpa perlu mengedit kode!
-- **⬇️ Auto-Update:** Pengecekan versi terbaru otomatis dari GitHub Releases (setiap 6 jam).
-- **💻 Cross-Platform Launcher:** Tersedia peluncur otomatis untuk **Windows** (`start.bat`) dan **macOS/Linux** (`MacOS_Start.command`).
+### 🌐 Dukungan AI Chat
+
+Mendukung **30+ situs AI Chat**, termasuk:
+
+* ChatGPT
+* DeepSeek
+* Claude
+* Gemini
+* Kimi
+* GLM / Z.ai
+* Qwen
+* Arena
+* Meta AI
+* Grok
+* Copilot
+* Perplexity
+* Mistral
+* Poe
+* HuggingChat
+* Pi
+* You.com
+* Phind
+* Blackbox
+* LMSYS
+* Duck.ai
+* Groq
+* Google AI Studio
+* OpenRouter
+* Cohere
+* T3 Chat
+* Together AI
+* v0
+* ClickUp
+* Dan berbagai provider lainnya.
+
+### 🧠 Generic Mode
+
+Tidak menemukan situs AI yang Anda gunakan?
+
+Aktifkan **Generic Mode** untuk mencoba menggunakan ZeroScript pada situs AI yang belum memiliki provider resmi.
+
+### 🔄 Agentic Loop
+
+ZeroScript menyediakan **agentic loop langsung di dalam chat**.
+
+Model AI dapat:
+
+1. Menerima system prompt ZeroScript.
+2. Menentukan tindakan yang diperlukan.
+3. Menghasilkan perintah ZeroScript.
+4. Menjalankan MCP tool.
+5. Menerima hasil tool.
+6. Melanjutkan reasoning dan tindakan berikutnya.
+7. Menampilkan hasil tool sebagai **interactive chips** di dalam chat.
+
+Dengan demikian, AI dapat melakukan pekerjaan kompleks secara bertahap tanpa pengguna harus menjalankan setiap perintah secara manual.
+
+### 🛡️ Automatic Recovery
+
+ZeroScript memiliki berbagai mekanisme recovery:
+
+* MCP server otomatis di-restart ketika crash.
+* Tool call yang terputus dapat dicoba kembali.
+* Zombie `StudioMCP.exe` dapat dibersihkan.
+* Konflik port dapat dideteksi.
+* Port yang dibajak oleh aplikasi lain, seperti `ropilot`, dapat diidentifikasi.
+* Bridge memiliki crash-loop diagnostics.
+* Koneksi WebSocket menggunakan mekanisme auto-reconnect.
+
+### 🧩 External MCP Servers
+
+ZeroScript dapat menggunakan MCP server tambahan.
+
+Server eksternal dapat:
+
+* Ditambahkan melalui UI ekstensi.
+* Dihapus melalui UI ekstensi.
+* Dikelola melalui konfigurasi ZeroScript.
+* Berjalan bersamaan dengan MCP server Roblox.
+
+Contoh penggunaan:
+
+```text
+ZeroScript
+├── Roblox MCP
+├── Blender MCP
+├── File System MCP
+├── Database MCP
+└── Custom MCP
+```
+
+### ⬇️ Automatic Update
+
+ZeroScript secara berkala memeriksa versi terbaru melalui **GitHub Releases**.
+
+Interval pemeriksaan default:
+
+```text
+Every 6 hours
+```
+
+### 💻 Cross-Platform Launcher
+
+Launcher tersedia untuk:
+
+* **Windows** — `start.bat`
+* **macOS/Linux** — `MacOS_Start.command`
+
+Launcher secara otomatis membantu:
+
+* Menemukan Python.
+* Memastikan dependency tersedia.
+* Menginstal `websockets` jika diperlukan.
+* Membersihkan bridge lama.
+* Menangani port `17613`.
+* Menjalankan `bridge.py`.
+
+---
 
 ## 📋 Persyaratan Sistem
 
-- **Browser:** Chrome / Edge / Brave (atau browser Chromium lainnya) — dimuat secara *unpacked*.
-- **Python:** Versi **3.9+** (beserta `pip`).
-- **Software:** Roblox Studio dengan fitur MCP server aktif: `Assistant Settings → MCP Servers → Enable "Studio as MCP server"`.
+### Browser
 
-## 🚀 Panduan Instalasi & Penggunaan
+Browser berbasis Chromium yang mendukung ekstensi Manifest V3:
 
-1. **Unduh & Ekstrak:** Unduh seluruh folder ZIP dan ekstrak di lokasi tetap (Jangan jalankan `start.bat` langsung dari dalam arsip).
-2. **Jalankan Bridge:**
-   - **Windows:** Jalankan `start.bat`.
-   - **macOS/Linux:** Jalankan `MacOS_Start.command`.
-   
-   *(Launcher akan otomatis mencari Python 3.9+, menginstal `websockets`, membersihkan port 17613, dan menjalankan `bridge.py`)*.
-   > ⚠️ **Catatan:** Jangan tutup jendela terminal yang terbuka. Bridge akan berhenti berjalan jika terminal ditutup. Cukup minimalkan saja.
-3. **Siapkan Roblox Studio:** Buka Studio, pastikan *place* sudah terbuka, dan aktifkan `Assistant Settings → MCP Servers → "Enable Studio as MCP server"`.
-4. **Muat Ekstensi:**
-   - Buka `chrome://extensions` di browser Anda.
-   - Aktifkan **Developer mode** (Mode pengembang) di kanan atas.
-   - Klik **Load unpacked** (Muat yang belum dikemas) → Pilih folder `zeroscript-extension`.
-5. **Mulai Beraksi:** Buka situs AI chat yang didukung, lalu klik tombol **Start Roblox agent** di *toolbar* ZeroScript.
+* Google Chrome
+* Microsoft Edge
+* Brave
+* Chromium
+* Browser Chromium lainnya
 
-🎉 Terminal bridge akan berubah **hijau** saat Studio terhubung (`Roblox Studio connected - N tools ready`).
+Ekstensi saat ini dimuat menggunakan mode **Load unpacked**.
 
-## 🛠️ Pemecahan Masalah (Troubleshooting)
+### Python
 
-| Gejala | Solusi & Penyebab Umum |
-| --- | --- |
-| 🔴 **0 tools / Status tidak pernah terhubung** | Konflik port 13469. Sisa `StudioMCP.exe` dari sesi lama, atau aplikasi pihak ketiga (seperti *ropilot*) menempati port. Pastikan panel MCP di Studio sudah terbuka. Bridge akan menampilkan kotak merah "ACTION NEEDED" di terminal. |
-| 🟡 **Studio terputus setelah update** | Studio sering mematikan toggle MCP sendiri pasca-update. Buka `Assistant Settings → MCP Servers`, lalu toggle **OFF** dan **ON** kembali. |
-| 🟠 **Port 17613 sudah dipakai** | Bridge lama masih berjalan di latar belakang. Jalankan ulang `start.bat` (launcher akan membunuh proses lama otomatis), atau jalankan `taskkill /F /PID <pid>` setelah mengecek via `netstat -ano \| findstr 17613`. |
-| ⚫ **"Bridge offline" di ekstensi** | Pastikan terminal bridge tidak *crash* atau tertutup. Cek log di `logs/start.log` dan `logs/bridge_debug.log`. |
-| ❌ **Tool call gagal: "no Studio instance"** | Studio tertutup, *place* belum dibuka, atau toggle MCP mati. Ini adalah masalah lingkungan lokal, bukan bug ekstensi. |
+Diperlukan:
 
-> 📄 **Log Lengkap:** Tersimpan di folder `logs/` (`bridge_debug.log` bersifat *append-only*). Saat melaporkan *bug*, mohon sertakan **screenshot seluruh jendela terminal** agar kami bisa menganalisisnya.
+```text
+Python 3.9+
+pip
+```
 
-## 💻 Pengembangan (Development)
+### Roblox Studio
 
-Struktur direktori ekstensi:
+Roblox Studio harus memiliki MCP server yang aktif.
+
+Buka:
+
+```text
+Assistant Settings
+    └── MCP Servers
+        └── Enable "Studio as MCP server"
+```
+
+Pastikan **place sudah terbuka** sebelum menggunakan ZeroScript.
+
+---
+
+# 🚀 Instalasi
+
+## 1. Unduh ZeroScript
+
+Unduh repository atau release ZeroScript, kemudian ekstrak seluruh folder ke lokasi permanen.
+
+> ⚠️ **Jangan menjalankan `start.bat` langsung dari dalam file ZIP.**
+
+Contoh:
+
+```text
+C:\Tools\ZeroScript\
+```
+
+atau:
+
+```text
+~/Applications/ZeroScript/
+```
+
+---
+
+## 2. Jalankan Bridge
+
+### Windows
+
+Jalankan:
+
+```text
+start.bat
+```
+
+### macOS / Linux
+
+Jalankan:
+
+```text
+MacOS_Start.command
+```
+
+Launcher akan membantu:
+
+1. Mendeteksi Python 3.9+.
+2. Memastikan `pip` tersedia.
+3. Menginstal dependency `websockets`.
+4. Membersihkan bridge lama jika diperlukan.
+5. Memastikan port `17613` tersedia.
+6. Menjalankan `bridge.py`.
+
+> ⚠️ **Penting:** Jangan menutup terminal bridge selama ZeroScript digunakan. Jika terminal ditutup, bridge juga akan berhenti.
+
+Anda cukup meminimalkan terminal tersebut.
+
+---
+
+## 3. Aktifkan Roblox Studio MCP
+
+Buka Roblox Studio dan pastikan place sudah terbuka.
+
+Kemudian buka:
+
+```text
+Assistant Settings
+    → MCP Servers
+    → Enable "Studio as MCP server"
+```
+
+Pastikan MCP server berhasil aktif.
+
+---
+
+## 4. Install Browser Extension
+
+Buka:
+
+```text
+chrome://extensions
+```
+
+Kemudian:
+
+1. Aktifkan **Developer mode**.
+2. Klik **Load unpacked**.
+3. Pilih folder:
 
 ```text
 zeroscript-extension/
-├── manifest.json        # Daftar content_scripts + host_permissions
-├── background.js        # Service worker: koneksi WebSocket tunggal + auto-reconnect
-├── core/
-│   ├── config.js        # Sistem prompt, feedback, kategori tool (provider-agnostic)
-│   ├── parser.js        # Parser perintah ZeroScript (Logika string murni, tanpa DOM)
-│   └── main.js          # Loop agen + UI (TIDAK boleh menyentuh DOM situs host)
-├── providers/*.js       # Script per situs AI (interface ZSProvider)
-├── overlay.css          # Styling UI (bar, chips, menu)
-└── test-parser.js      # Smoke test parser
 ```
 
-### Perintah Terminal
+Chrome akan memuat ekstensi ZeroScript.
+
+---
+
+## 5. Mulai ZeroScript Agent
+
+Buka salah satu situs AI Chat yang didukung.
+
+Kemudian klik:
+
+```text
+Start Roblox Agent
+```
+
+pada toolbar ZeroScript.
+
+Jika Roblox Studio berhasil terhubung, bridge akan menampilkan status seperti:
+
+```text
+Roblox Studio connected - N tools ready
+```
+
+🎉 ZeroScript siap digunakan.
+
+---
+
+# 🛠️ Troubleshooting
+
+| Gejala                                              | Penyebab / Solusi                                                                                                                                                                                                |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🔴 **0 tools / Studio tidak terhubung**             | Kemungkinan terdapat konflik pada port `13469`. Periksa apakah ada `StudioMCP.exe` lama atau aplikasi pihak ketiga seperti `ropilot` yang menggunakan port tersebut. Pastikan MCP server di Roblox Studio aktif. |
+| 🟡 **Studio terputus setelah update Roblox Studio** | Roblox Studio terkadang menonaktifkan MCP setelah update. Buka `Assistant Settings → MCP Servers`, kemudian toggle MCP **OFF → ON**.                                                                             |
+| 🟠 **Port `17613` sudah digunakan**                 | Kemungkinan bridge lama masih berjalan. Jalankan kembali `start.bat`, atau cari proses yang menggunakan port tersebut melalui `netstat -ano \| findstr 17613`.                                                   |
+| ⚫ **Bridge offline di ekstensi**                    | Pastikan terminal bridge masih berjalan dan tidak mengalami crash. Periksa `logs/start.log` dan `logs/bridge_debug.log`.                                                                                         |
+| ❌ **`no Studio instance`**                          | Roblox Studio tertutup, place belum terbuka, atau MCP server belum aktif.                                                                                                                                        |
+| ❌ **Tool call tidak berjalan**                      | Pastikan agent sudah diaktifkan melalui tombol **Start Roblox Agent** dan koneksi bridge masih aktif.                                                                                                            |
+
+### 🔴 ACTION NEEDED
+
+Jika bridge mendeteksi masalah MCP, terminal akan menampilkan banner:
+
+```text
+ACTION NEEDED
+```
+
+Ikuti instruksi yang diberikan bridge sebelum mencoba menjalankan agent kembali.
+
+---
+
+## 📄 Log & Debugging
+
+Semua log tersedia di:
+
+```text
+logs/
+├── start.log
+└── bridge_debug.log
+```
+
+`bridge_debug.log` menggunakan mode **append-only** untuk mempertahankan riwayat debugging.
+
+### 🐛 Melaporkan Bug
+
+Saat melaporkan bug, sertakan:
+
+1. Screenshot seluruh jendela terminal bridge.
+2. Screenshot Roblox Studio jika berkaitan dengan MCP.
+3. Screenshot UI ZeroScript jika berkaitan dengan ekstensi.
+4. Isi log yang relevan dari:
+
+   * `logs/start.log`
+   * `logs/bridge_debug.log`
+5. Versi ZeroScript.
+6. Versi Roblox Studio.
+7. Situs AI Chat yang digunakan.
+
+Semakin lengkap informasi yang diberikan, semakin mudah masalah direproduksi dan diperbaiki.
+
+---
+
+# 💻 Development
+
+## Struktur Ekstensi
+
+```text
+zeroscript-extension/
+├── manifest.json
+│
+├── background.js
+│   └── Service worker
+│       ├── WebSocket connection
+│       ├── Auto reconnect
+│       └── Provider URL routing
+│
+├── core/
+│   ├── config.js
+│   │   └── System prompt, feedback,
+│   │       tool categories, configuration
+│   │
+│   ├── parser.js
+│   │   └── ZeroScript command parser
+│   │
+│   └── main.js
+│       └── Agent loop & ZeroScript UI
+│
+├── providers/
+│   ├── chatgpt.js
+│   ├── claude.js
+│   ├── deepseek.js
+│   ├── kimi.js
+│   └── ...
+│
+├── overlay.css
+│   └── ZeroScript UI styling
+│
+└── test-parser.js
+    └── Parser smoke tests
+```
+
+### Prinsip Arsitektur
+
+ZeroScript memisahkan tanggung jawab antara:
+
+* **Core**
+* **Provider**
+* **Background service**
+* **UI**
+* **Parser**
+* **Bridge**
+
+Provider AI tidak seharusnya mencampurkan logic inti ZeroScript.
+
+---
+
+# 🧪 Testing
+
+Untuk menjalankan smoke test parser:
 
 ```bash
-# Jalankan smoke test parser
 cd zeroscript-extension
 node test-parser.js
+```
 
-# Jalankan bridge secara manual (Windows/macOS/Linux)
+---
+
+# ⚙️ Menjalankan Bridge Secara Manual
+
+Install dependency:
+
+```bash
 pip install websockets
+```
+
+Kemudian jalankan:
+
+```bash
 python bridge.py
 ```
-*Note:* Environment variable `ZS_BRIDGE_PORT` dapat digunakan untuk mengganti port default (17613). Pastikan juga mengubah `PORT` di `background.js` jika port diubah.
 
-### Menambahkan Dukungan Situs AI Baru
+Bridge secara default menggunakan:
 
-Setiap `providers/<situs>.js` harus mengekspos global `ZSProvider`. Content script dimuat dalam urutan: `core/config.js` → `core/parser.js` → `providers/<situs>.js` → `core/main.js` + `overlay.css`. 
+```text
+ws://127.0.0.1:17613
+```
 
-Untuk menambah situs baru, sinkronkan **4 tempat** berikut:
-1. `manifest.json` — Tambahkan entri `content_scripts` dan `host_permissions`.
-2. `background.js` — Tambahkan pola URL ke `PROVIDER_URLS` dan `KNOWN_EXCLUDE`.
-3. `core/main.js` — Tambahkan entri `AI_SITES` (nama harus sama dengan `displayName` provider).
-4. Buat file `providers/<situs>.js` baru (Gunakan `kimi.js` sebagai referensi terbaik).
+---
 
-**Format Perintah Parser** (Didefinisikan di `core/config.js`):
-- `###LUA### … ###END_LUA###` (Opsional: `:Edit|:Client|:Server`, default: Edit)
-- JSON: `{"command": …, "params": {…}}`
-- `###LUA###` selalu dipetakan ke fungsi `execute_luau`.
+## 🔧 Mengubah Port Bridge
 
-## 📜 Lisensi & Kredit
+Port dapat dikustomisasi menggunakan environment variable:
 
-Proyek ini dilisensikan di bawah **[MIT License](LICENSE)**.
+```text
+ZS_BRIDGE_PORT
+```
 
-**ZeroScript** adalah proyek improvisasi dan modernisasi yang terinspirasi dan berdasarkan kode sumber dari proyek asli:
-👉 **[ZeroScript-Free by sebattfg](https://github.com/sebattfg/ZeroScript-Free)**
+Contoh:
 
-Terkait pengembangan, pelaporan bug, atau kontribusi lebih lanjut, silakan buka *issue* atau *pull request* di repositori ini.
+### Windows PowerShell
+
+```powershell
+$env:ZS_BRIDGE_PORT="17614"
+python bridge.py
+```
+
+### Linux / macOS
+
+```bash
+ZS_BRIDGE_PORT=17614 python bridge.py
+```
+
+> ⚠️ Jika port bridge diubah, pastikan konfigurasi port pada `background.js` juga diperbarui agar extension tetap dapat terhubung ke bridge.
+
+---
+
+# 🌐 Menambahkan Provider AI Baru
+
+ZeroScript menggunakan sistem provider untuk menangani perbedaan struktur setiap situs AI.
+
+Setiap provider harus mengekspos:
+
+```javascript
+ZSProvider
+```
+
+Provider kemudian dimuat dalam urutan:
+
+```text
+core/config.js
+      ↓
+core/parser.js
+      ↓
+providers/<site>.js
+      ↓
+core/main.js
+      ↓
+overlay.css
+```
+
+## Langkah Menambahkan Provider
+
+Untuk menambahkan situs AI baru, sinkronkan **empat bagian** berikut:
+
+### 1. `manifest.json`
+
+Tambahkan:
+
+* `content_scripts`
+* `host_permissions`
+
+### 2. `background.js`
+
+Tambahkan pola URL ke:
+
+```javascript
+PROVIDER_URLS
+```
+
+dan jika diperlukan:
+
+```javascript
+KNOWN_EXCLUDE
+```
+
+### 3. `core/main.js`
+
+Tambahkan situs ke:
+
+```javascript
+AI_SITES
+```
+
+Nama situs harus konsisten dengan:
+
+```javascript
+displayName
+```
+
+pada provider.
+
+### 4. Buat Provider
+
+Buat file:
+
+```text
+providers/<site>.js
+```
+
+Gunakan:
+
+```text
+providers/kimi.js
+```
+
+sebagai referensi implementasi.
+
+---
+
+# 📡 ZeroScript Command Protocol
+
+Parser ZeroScript mendukung dua format utama.
+
+## Luau Execution
+
+Format:
+
+```text
+###LUA###
+print("Hello from ZeroScript")
+###END_LUA###
+```
+
+Secara default, kode akan dijalankan pada:
+
+```text
+Edit
+```
+
+Scope dapat ditentukan secara eksplisit:
+
+```text
+###LUA###:Edit
+...
+###END_LUA###
+```
+
+```text
+###LUA###:Client
+...
+###END_LUA###
+```
+
+```text
+###LUA###:Server
+...
+###END_LUA###
+```
+
+Semua blok `###LUA###` dipetakan ke:
+
+```text
+execute_luau
+```
+
+---
+
+## JSON Command
+
+Format:
+
+```json
+{
+  "command": "command_name",
+  "params": {}
+}
+```
+
+Contoh:
+
+```json
+{
+  "command": "create_part",
+  "params": {
+    "name": "MyPart"
+  }
+}
+```
+
+Command akan diteruskan berdasarkan nama tool yang tersedia pada MCP server.
+
+---
+
+# 🏗️ Development Principles
+
+Kontribusi ke ZeroScript diharapkan mengikuti prinsip berikut:
+
+* **Modular**
+* **Maintainable**
+* **Readable**
+* **Testable**
+* **Provider-agnostic**
+* **Error-resilient**
+* **Backward-compatible** jika memungkinkan
+* Hindari coupling antara provider dan core.
+* Hindari manipulasi DOM situs AI dari modul core.
+* Jangan menambahkan dependency tanpa alasan yang jelas.
+* Perubahan besar harus disertai dokumentasi dan testing yang sesuai.
+
+---
+
+# 📜 License
+
+ZeroScript dilisensikan di bawah:
+
+**MIT License**
+
+Lihat file:
+
+```text
+MIT License
+
+Copyright (c) 2026 Rizki Kotet
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+untuk informasi lengkap mengenai ketentuan lisensi.
+
+---
+
+# 🙏 Credits
+
+**ZeroScript** merupakan proyek improvisasi dan modernisasi yang terinspirasi serta dikembangkan berdasarkan kode sumber proyek asli:
+
+**ZeroScript-Free by sebattfg**
+
+Repository:
+
+https://github.com/sebattfg/ZeroScript-Free
+
+---
+
+# 🤝 Contributing
+
+Kontribusi sangat terbuka.
+
+Jika menemukan bug, memiliki ide fitur, atau ingin meningkatkan ZeroScript:
+
+* Buat **Issue** untuk bug atau feature request.
+* Buat **Pull Request** untuk perubahan kode.
+* Jelaskan perubahan yang dilakukan.
+* Sertakan langkah reproduksi untuk bug.
+* Sertakan testing yang relevan jika memungkinkan.
+
+---
+
+## ⭐ Support
+
+Jika ZeroScript membantu workflow development Roblox Anda, pertimbangkan untuk memberikan ⭐ pada repository ini.
+
+**ZeroScript — Connect AI to Roblox Studio.**
