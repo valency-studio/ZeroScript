@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "roblox-mcp": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@chrrxs/robloxstudio-mcp@latest",
+        "--auto-install-plugin"
+      ]
+    }
+  }
+}

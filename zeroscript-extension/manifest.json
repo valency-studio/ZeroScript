@@ -1,0 +1,531 @@
+{
+  "manifest_version": 3,
+  "name": "BetterScript Studio × Roblox Agent",
+  "version": "2.4.0",
+  "description": "BetterScript Studio — loop stability, ClickUp Brain2, done SFX, ForgeGUI/Make UI modes, advanced anim kits, macOS launcher.",
+  "permissions": [
+    "storage",
+    "scripting"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://chat.deepseek.com/*",
+    "https://deepseek.com/*",
+    "https://gemini.google.com/*",
+    "https://www.kimi.com/*",
+    "https://kimi.com/*",
+    "https://chat.z.ai/*",
+    "https://chat.qwen.ai/*",
+    "https://arena.ai/*",
+    "https://www.meta.ai/*",
+    "https://meta.ai/*",
+    "https://grok.x.ai/*",
+    "https://x.com/*",
+    "https://copilot.microsoft.com/*",
+    "https://www.perplexity.ai/*",
+    "https://perplexity.ai/*",
+    "https://chat.mistral.ai/*",
+    "https://poe.com/*",
+    "https://huggingface.co/chat/*",
+    "https://pi.ai/*",
+    "https://you.com/*",
+    "https://www.phind.com/*",
+    "https://phind.com/*",
+    "https://www.blackbox.ai/*",
+    "https://blackbox.ai/*",
+    "https://chat.lmsys.org/*",
+    "https://lmarena.ai/*",
+    "https://duck.ai/*",
+    "https://api.github.com/*",
+    "http://127.0.0.1/*",
+    "ws://127.0.0.1/*",
+    "https://console.groq.com/*",
+    "https://aistudio.google.com/*",
+    "https://openrouter.ai/*",
+    "https://coral.cohere.com/*",
+    "https://t3.chat/*",
+    "https://chat.together.ai/*",
+    "https://api.together.xyz/*",
+    "https://v0.dev/*",
+    "https://app.clickup.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "BetterScript Free",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/chatgpt.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/claude.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chat.deepseek.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/deepseek.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/gemini.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.kimi.com/*",
+        "https://kimi.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/kimi.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chat.z.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/glm.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://arena.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/arena.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.meta.ai/*",
+        "https://meta.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/meta.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chat.qwen.ai/*"
+      ],
+      "js": [
+        "providers/qwen-net.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://chat.qwen.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/qwen.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://grok.x.ai/*",
+        "https://x.com/i/grok*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/grok.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://copilot.microsoft.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/copilot.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.perplexity.ai/*",
+        "https://perplexity.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/perplexity.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chat.mistral.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/mistral.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://poe.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/poe.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://huggingface.co/chat/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/huggingchat.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://pi.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/pi.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://you.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/you.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.phind.com/*",
+        "https://phind.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/phind.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.blackbox.ai/*",
+        "https://blackbox.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/blackbox.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chat.lmsys.org/*",
+        "https://lmarena.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/lmsys.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://duck.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/duckduckgo.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://console.groq.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/groq.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://aistudio.google.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/aistudio.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://openrouter.ai/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/openrouter.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://coral.cohere.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/cohere.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://t3.chat/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/t3chat.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chat.together.ai/*",
+        "https://api.together.xyz/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/together.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://v0.dev/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/v0.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://app.clickup.com/*"
+      ],
+      "js": [
+        "core/config.js",
+        "core/parser.js",
+        "providers/clickup.js",
+        "core/main.js"
+      ],
+      "css": [
+        "overlay.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
