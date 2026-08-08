@@ -17,8 +17,8 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
-    "typescript": "^5",
-    "vite": "^8"
+    "typescript": "^7",
+    "vite": "^6"
   },
   "trustedDependencies": [
     "esbuild"
