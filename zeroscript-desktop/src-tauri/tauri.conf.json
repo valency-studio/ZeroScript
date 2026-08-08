@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "identifier": "com.zeroscript.desktop",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "node scripts/sync-version.mjs && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "node scripts/sync-version.mjs && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -14,16 +14,16 @@
       {
         "label": "main",
         "title": "ZeroScript",
-        "width": 1120,
-        "height": 740,
-        "minWidth": 920,
-        "minHeight": 580,
+        "width": 1180,
+        "height": 760,
+        "minWidth": 780,
+        "minHeight": 520,
         "center": true,
         "resizable": true
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://127.0.0.1:* ws://localhost:*; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://127.0.0.1:* ws://localhost:* https://api.github.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:"
     }
   },
   "bundle": {

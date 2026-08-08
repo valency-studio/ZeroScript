@@ -66,14 +66,15 @@ export function initSettings(el: HTMLElement, client: BridgeClient): void {
       </div>
 
       <div class="card">
-        <h3 class="card-title">About</h3>
+        <h3 class="card-title">General</h3>
         <ul class="kv">
           <li><span>App version</span><b class="mono">v${escapeHtml(info.version)}</b></li>
           <li><span>Platform</span><b class="mono">${escapeHtml(info.os)}</b></li>
           <li><span>Bridge port</span><b class="mono">${port}</b></li>
         </ul>
         <p class="muted note">The browser extension is still the way ZeroScript talks to AI chat sites —
-        this app runs and supervises the bridge behind a modern interface.</p>
+        this app runs and supervises the bridge behind a modern interface.
+        Version, updates and links live in the About view.</p>
       </div>
     `;
 

@@ -13,19 +13,33 @@ function classify(line: string): string {
   return "dim";
 }
 
+let hydrated = false;
+
+function emptyState(): string {
+  return `<div class="console-empty">Waiting for bridge output…
+  <span>Start the bridge — its logs appear here in real time.</span></div>`;
+}
+
 export function initLogs(el: HTMLElement): void {
   consoleEl = el;
+  consoleEl.innerHTML = emptyState();
   document.getElementById("logsPause")!.addEventListener("click", (e) => {
     paused = !paused;
     (e.target as HTMLButtonElement).textContent = paused ? "Resume" : "Pause";
   });
   document.getElementById("logsClear")!.addEventListener("click", () => {
     consoleEl.textContent = "";
+    hydrated = false;
+    consoleEl.innerHTML = emptyState();
   });
 }
 
 export function appendLog(raw: string): void {
   if (!consoleEl) return;
+  if (!hydrated) {
+    hydrated = true;
+    consoleEl.textContent = "";
+  }
   // A single event may carry several lines.
   for (const line of raw.split("\n")) {
     const clean = line.replace(ANSI_RE, "");

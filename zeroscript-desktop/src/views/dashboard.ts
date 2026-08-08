@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { listen } from "@tauri-apps/api/event";
 import { BridgeClient, Snapshot } from "../bridge-ws";
 import { bridgeRunning, restartBridge, startBridge, stopBridge } from "../tauri";
 
@@ -127,6 +128,14 @@ export function initDashboard(el: HTMLElement, client: BridgeClient): void {
     snapshot = s;
     render();
   });
+  // The sidecar terminating (stop button, tray, crash) is the authoritative
+  // "process is gone" signal - update the running flag immediately instead of
+  // waiting up to 4s for the bridgeRunning() poll (which would leave the
+  // Bridge card and buttons contradicting the offline hero).
+  listen("bridge-exit", () => {
+    running = false;
+    render();
+  }).catch(() => undefined);
   refreshRunning();
   setInterval(refreshRunning, 4000);
 }

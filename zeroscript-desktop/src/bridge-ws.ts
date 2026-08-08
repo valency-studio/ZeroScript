@@ -43,7 +43,10 @@ const EMPTY: Snapshot = {
 
 export class BridgeClient {
   private ws: WebSocket | null = null;
-  private timer: number | null = null;
+  private timer: number | null = null; // reconnect timer
+  private heartbeat: number | null = null; // liveness timer
+  private socketOpen = false;
+  private lastMessageAt = 0;
   private reqId = 1;
   private pending = new Map<number, (msg: any) => void>();
   private snapshot: Snapshot = { ...EMPTY };
@@ -69,6 +72,8 @@ export class BridgeClient {
   }
 
   disconnect(): void {
+    this.socketOpen = false;
+    this.stopHeartbeat();
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -92,11 +97,17 @@ export class BridgeClient {
     this.ws = ws;
 
     ws.onopen = () => {
+      this.socketOpen = true;
+      this.lastMessageAt = Date.now();
       this.reqId = 1;
       this.request("studio_status");
       this.request("list_tools");
+      this.startHeartbeat();
     };
-    ws.onmessage = (ev) => this.handle(ev.data);
+    ws.onmessage = (ev) => {
+      this.lastMessageAt = Date.now();
+      this.handle(ev.data);
+    };
     ws.onerror = () => {
       try {
         ws.close();
@@ -107,10 +118,71 @@ export class BridgeClient {
     ws.onclose = () => {
       if (this.ws !== ws) return;
       this.ws = null;
+      this.socketOpen = false;
+      this.stopHeartbeat();
       this.snapshot = { ...EMPTY };
       this.emit();
       this.schedule();
     };
+  }
+
+  /**
+   * Ping the bridge every 10s and detect a DEAD socket: when the bridge
+   * process is killed, the webview socket can stay "open" from the client's
+   * point of view for a long time (no FIN until the OS notices), so onclose
+   * may not fire and the UI would keep showing stale status. If nothing has
+   * arrived for 25s while we believe we are connected, force-close the socket
+   * so the normal onclose path resets the UI to offline (same approach as the
+   * extension's background.js).
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeat = window.setInterval(() => {
+      if (!this.socketOpen || !this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      if (this.lastMessageAt && Date.now() - this.lastMessageAt > 25000) {
+        try {
+          this.ws.close();
+        } catch {
+          /* noop */
+        }
+        return;
+      }
+      this.request("ping");
+    }, 10000);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeat !== null) {
+      clearInterval(this.heartbeat);
+      this.heartbeat = null;
+    }
+  }
+
+  /**
+   * Drop the snapshot to offline immediately and keep the reconnect loop
+   * running. Called on the Rust `bridge-exit` event - the reliable signal
+   * that the bridge process really terminated - so the UI never waits for
+   * the webview to notice the dead socket on its own.
+   */
+  forceOffline(): void {
+    this.socketOpen = false;
+    this.stopHeartbeat();
+    // Detach FIRST so a close event firing concurrently sees this.ws !== ws
+    // and returns early (no double emit).
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) {
+      ws.onclose = null;
+      ws.onerror = null;
+      try {
+        ws.close();
+      } catch {
+        /* noop */
+      }
+    }
+    this.snapshot = { ...EMPTY };
+    this.emit();
+    this.schedule();
   }
 
   private schedule(): void {

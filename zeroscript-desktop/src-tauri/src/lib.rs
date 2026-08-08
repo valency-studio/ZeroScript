@@ -152,6 +152,22 @@ fn get_app_info(app: AppHandle) -> AppInfo {
     }
 }
 
+/// Open a URL in the user's default browser (About view: update downloads,
+/// GitHub, support links).
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let res = std::process::Command::new("cmd")
+        .args(["/c", "start", "", &url])
+        .spawn();
+    #[cfg(target_os = "macos")]
+    let res = std::process::Command::new("open").arg(&url).spawn();
+    #[cfg(target_os = "linux")]
+    let res = std::process::Command::new("xdg-open").arg(&url).spawn();
+    res.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // ── tray + window behaviour ────────────────────────────────────────────────
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
@@ -227,6 +243,7 @@ pub fn run() {
             get_data_dir,
             open_data_dir,
             get_app_info,
+            open_url,
         ])
         .setup(|app| {
             setup_tray(app.handle())?;

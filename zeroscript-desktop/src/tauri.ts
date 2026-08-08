@@ -13,3 +13,4 @@ export const bridgeRunning = (): Promise<boolean> => invoke("bridge_running");
 export const getDataDir = (): Promise<string> => invoke("get_data_dir");
 export const openDataDir = (): Promise<void> => invoke("open_data_dir");
 export const getAppInfo = (): Promise<AppInfo> => invoke("get_app_info");
+export const openUrl = (url: string): Promise<void> => invoke("open_url", { url });
