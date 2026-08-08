@@ -65,20 +65,27 @@ jobs:
 
       - name: Resolve version and tag
         id: version
+        shell: bash
         run: |
+          set -euo pipefail
+
           VERSION="${{ inputs.version }}"
+
           if [ -z "$VERSION" ]; then
-            VERSION=$(node -p "require('./zeroscript-extension/manifest.json').version")
+            VERSION="$(node -p "require('./zeroscript-extension/manifest.json').version")"
           fi
+
+          TAG="v${VERSION}"
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-          # Skip when the tag already exists: a push may touch manifest.json
-          # without bumping the version (e.g. new host permission) - that
-          # must not create a duplicate release for the same version.
-          if git tag -l "v${VERSION}" | grep -q .; then
-            echo "exists=true"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} already exists. Release will be skipped."
           else
-            echo "exists=false"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${TAG} does not exist. Release can proceed."
           fi
 
       - name: Package extension zip

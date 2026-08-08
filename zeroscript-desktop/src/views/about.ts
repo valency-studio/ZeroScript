@@ -343,7 +343,7 @@ function render(info: UpdateInfo): void {
   root.innerHTML = `
     <div class="card about-hero">
       <div class="card-content hero-flex">
-        <div class="about-mark" aria-hidden="true">ZS</div>
+        <div class="about-mark" aria-hidden="true"><img src="/icon-1024.png" alt="" /></div>
         <div class="about-hero-body">
           <div class="about-name">ZeroScript</div>
           <div class="about-tagline">Connect AI chat to Roblox Studio via MCP</div>
