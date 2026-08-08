@@ -119,7 +119,7 @@ function render(): void {
           ${s.connected ? `${s.tools} tools · ${up}/${s.servers.length} servers up` : "not connected"}
         </div>
         <div class="hero-actions">
-          <button id="btnStart" class="btn primary" ${running && !busy ? "" : "disabled"}>
+          <button id="btnStart" class="btn primary" ${!running && !busy ? "" : "disabled"}>
             ${busy === "start" ? btnSpinner("Starting") : "Start Bridge"}
           </button>
           <button id="btnStop" class="btn ghost" ${running && !busy ? "" : "disabled"}>Stop Bridge</button>

@@ -6,6 +6,20 @@ Format changelog mengikuti [Keep a Changelog](https://keepachangelog.com/id-ID/1
 
 ---
 
+## [1.0.1] — Perbaikan Bug
+
+**Perbaikan bug pada tombol Start Bridge di Desktop GUI.**
+
+### Fixed
+
+* **Tombol Start Bridge tidak bisa diklik**
+
+  * Logika `disabled` pada tombol Start Bridge terbalik — tombol justru disabled ketika bridge berhenti.
+  * Perbaikan: tombol sekarang enabled ketika bridge berhenti dan tidak sedang busy.
+  * Tombol Stop dan Restart tetap berfungsi dengan benar.
+
+---
+
 ## [1.0.0] — Rilis Terbaru
 
 **Rilis perdana ZeroScript dengan sistem penomoran versi terpadu.**
@@ -159,6 +173,8 @@ Versi sebelum `1.0.0` menggunakan sistem penomoran terpisah:
 
 * **Extension:** `2.4.0`
 * **Bridge:** `1.5.0`
+
+Catatan: `BRIDGE_VERSION` di `bridge.py` sebelumnya adalah `1.5.0`, kini disinkronkan menjadi `1.0.1`.
 
 Perubahan dari versi-versi tersebut belum terdokumentasi secara lengkap dalam changelog ini.
 
