@@ -21,12 +21,12 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: write
-
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,12 +46,24 @@ jobs:
         id: notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          VESC=$(printf '%s' "$VERSION" | sed 's/[.[\*^$]/\\&/g')
-          notes=$(awk -v re="^## \\[${VESC}\\]" '
-            $0 ~ re { found=1; next }
-            found && $0 ~ /^## / { exit }
-            found { print }
+          
+          # Menggunakan index() untuk exact string matching (menghindari bug regex)
+          # Skrip akan berhenti jika menemukan versi lain (## [x.x.x]) atau section statis
+          notes=$(awk -v ver="## [${VERSION}]" '
+            $0 == ver || index($0, ver" ") == 1 {
+              found=1
+            }
+            found && $0 ~ /^## \[/ && index($0, ver) != 1 {
+              exit
+            }
+            found && ($0 == "## Legacy Versions" || $0 == "## Versioning") {
+              exit
+            }
+            found {
+              print
+            }
           ' CHANGELOG.md)
+          
           if [ -z "$notes" ]; then
             echo "::warning::No CHANGELOG.md section found for [${VERSION}] - using a fallback message."
             notes="Release v${VERSION} of ZeroScript."
