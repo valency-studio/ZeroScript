@@ -1,0 +1,4 @@
+# Build-time dependencies for packaging/build.py (see .github/workflows/build-desktop.yml).
+# websockets must match what bridge.py expects (>= 14 uses the single-arg handler API).
+websockets>=14
+pyinstaller>=6.0

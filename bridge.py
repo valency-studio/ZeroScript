@@ -22,6 +22,7 @@ import asyncio
 import json
 import os
 import queue
+import shutil
 import subprocess
 import sys
 import threading
@@ -52,6 +53,14 @@ try:
 except Exception:
     pass
 
+# Packaged macOS .app builds run windowed: PyInstaller hands us None std streams
+# and any print() would then crash the bridge. Replace them with devnull sinks
+# so the bridge runs identically in dev and packaged form.
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
 
 def _enable_ansi_colors():
     """On Windows, turn on ANSI escape processing so color codes render instead
@@ -76,8 +85,44 @@ HOST = "127.0.0.1"
 # startup so a user's terminal output alone tells us which build they're on.
 BRIDGE_VERSION = "1.5.0"
 PORT = int(os.environ.get("ZS_BRIDGE_PORT", "17613"))
-HERE = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(HERE, "config.json")
+
+
+def _base_dir():
+    """Directory for config.json + logs. Dev: next to bridge.py. Packaged app
+    (PyInstaller): NEXT TO THE EXECUTABLE - __file__ would point into a read-only
+    temp/_internal dir where writes silently vanish. The one exception is Linux
+    AppImage, whose whole mount is read-only too: there the data lives in
+    ~/.zeroscript. ZS_DATA_DIR overrides everything (power users)."""
+    override = os.environ.get("ZS_DATA_DIR")
+    if override:
+        return os.path.abspath(override)
+    if getattr(sys, "frozen", False):
+        if sys.platform.startswith("linux") and os.environ.get("APPDIR"):
+            return os.path.expanduser("~/.zeroscript")
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+BASE = _base_dir()
+# Directory the bridge executable/script itself sits in. Same as BASE except on
+# Linux AppImage (the executable is inside the read-only mount, data is not).
+HERE = (os.path.dirname(os.path.abspath(sys.executable))
+        if getattr(sys, "frozen", False)
+        else os.path.dirname(os.path.abspath(__file__)))
+CONFIG_PATH = os.path.join(BASE, "config.json")
+
+
+def _sibling_exe(script_stem):
+    """Packaged builds ship small helper scripts (launch_studio_mcp.py, ...) as
+    sibling executables next to the bridge binary. A bare '.py' command in
+    config.json maps to that bundled executable. Returns the path, or None in
+    dev mode / when the sibling binary is missing."""
+    if not getattr(sys, "frozen", False):
+        return None
+    exe = os.path.join(HERE, script_stem)
+    if sys.platform == "win32" and not exe.lower().endswith(".exe"):
+        exe += ".exe"
+    return exe if os.path.isfile(exe) else None
 
 # The primary server. It is always present, added by the installer, and can
 # never be edited/removed through the extension (it is what ZeroScript is FOR).
@@ -103,7 +148,8 @@ else:
 # Every run appends here (never truncated), so a whole test session - across
 # multiple restarts - stays in one file the user can just send us. Each
 # process start writes a banner (see main()) so restarts are easy to spot.
-LOGS_DIR = os.path.join(HERE, "logs")
+os.makedirs(BASE, exist_ok=True)
+LOGS_DIR = os.path.join(BASE, "logs")
 os.makedirs(LOGS_DIR, exist_ok=True)
 LOG_PATH = os.path.join(LOGS_DIR, "bridge_debug.log")
 try:
@@ -466,12 +512,15 @@ def _reclaim_bridge_port():
         return False
     if pid_i == os.getpid():
         return False  # never kill ourselves (defensive; we haven't bound yet)
-    # Must look like a python interpreter AND be running bridge.py. Killing on
-    # the port alone would murder whatever legitimately owns 17613.
-    if "python" not in (name or "").lower() and "py" != (name or "").lower():
+    # Must look like a python interpreter running bridge.py (dev), or our own
+    # packaged executable (frozen). Killing on the port alone would murder
+    # whatever legitimately owns 17613.
+    exe_stem = os.path.splitext(os.path.basename(sys.executable))[0].lower()
+    if ("python" not in (name or "").lower() and "py" != (name or "").lower()
+            and exe_stem not in (name or "").lower()):
         return False
     cmdline = _process_cmdline(pid_i)
-    if "bridge.py" not in cmdline.lower():
+    if "bridge.py" not in cmdline.lower() and exe_stem not in cmdline.lower():
         log(f"port {PORT} is held by pid {pid_i} ('{name}') but it does not look "
             f"like a ZeroScript bridge - leaving it alone.", "yl")
         return False
@@ -717,19 +766,25 @@ def restart_self():
             _log_file.flush()
         except Exception:
             pass
-    # sys.argv[0] may be relative ('bridge.py'); make it absolute so the restart
-    # works regardless of the current working directory.
     argv = list(sys.argv)
-    script = os.path.abspath(argv[0]) if argv else os.path.abspath(__file__)
-    argv = [script] + argv[1:]
+    if getattr(sys, "frozen", False):
+        # Packaged app: sys.executable IS the bridge binary and argv[0] already
+        # points at it - do NOT prepend it as a pseudo-interpreter the way the
+        # dev-mode branch does for 'python bridge.py'.
+        cmd = [sys.executable] + argv[1:]
+    else:
+        # sys.argv[0] may be relative ('bridge.py'); make it absolute so the
+        # restart works regardless of the current working directory.
+        script = os.path.abspath(argv[0]) if argv else os.path.abspath(__file__)
+        cmd = [sys.executable, script] + argv[1:]
     try:
-        os.execv(sys.executable, [sys.executable] + argv)
+        os.execv(sys.executable, cmd)
     except Exception as e:
         # execv failed (rare) - fall back to spawning a detached copy and exiting
         # so the user still ends up with a running, up-to-date bridge.
         log(f"in-place restart failed ({e}); spawning a fresh bridge...", "rd")
         try:
-            subprocess.Popen([sys.executable] + argv, cwd=HERE)
+            subprocess.Popen(cmd, cwd=HERE)
         except Exception as e2:
             log(f"could not spawn a fresh bridge: {e2} - please restart it manually", "rd")
         os._exit(0)
@@ -784,15 +839,58 @@ class MCPClient:
         # grabs the port a moment after boot (seen live 2026-07-13: ropilot took
         # the port ~1s after the boot check ran, so nothing was flagged).
         self.saw_foreign_ws_host = False
+        # Set once when this server is switched from a Node.js-based command to
+        # Roblox Studio's built-in StudioMCP (see _needs_node_fallback).
+        self._fallback_applied = False
 
     # ── lifecycle ─────────────────────────────────────────────────────────
     def _resolve(self, s):
         return os.path.expandvars(os.path.expanduser(str(s)))
 
+    def _needs_node_fallback(self):
+        """True when this server NEEDS Node.js to run but none is installed.
+
+        Packaged ZeroScript cannot promise users a Node runtime, and a config
+        whose command runs 'npx/npm/node' (e.g. the @chrrxs/robloxstudio-mcp
+        server) is exactly the kind of thing that used to die in a silent
+        restart loop on machines without Node. For the Roblox MCP server we
+        then fall back to the StudioMCP binary that ships INSIDE Roblox Studio
+        itself, which needs no Node at all. Applied at most once per process."""
+        if getattr(self, "_fallback_applied", False):
+            return False
+        if shutil.which("node") is not None or shutil.which("npx") is not None:
+            return False
+        blob = f"{self.command} {' '.join(self.args)}".lower()
+        return "roblox" in blob and any(t in blob for t in ("npx", "npm", "node"))
+
+    def _apply_node_fallback(self):
+        """Switch this server to Roblox Studio's built-in StudioMCP launcher
+        (no Node needed) and tell the user what happened + how to get the
+        custom MCP back."""
+        self._fallback_applied = True
+        if getattr(sys, "frozen", False):
+            self.command = _sibling_exe("launch_studio_mcp") or "launch_studio_mcp"
+        else:
+            self.command = os.path.join(HERE, "launch_studio_mcp.py")
+        self.args = []
+        log(f"[{self.id}] Node.js is not installed - falling back to Roblox "
+            "Studio's built-in StudioMCP server (no Node needed).", "yl")
+        action_banner([
+            "Node.js is not installed on this PC.",
+            "The custom Roblox MCP server needs it, so ZeroScript",
+            "switched to Roblox Studio's built-in MCP server.",
+            "Enable it in Studio: Assistant Settings > MCP Servers",
+            "       > 'Enable Studio as MCP server'",
+            "To use the custom MCP again: install Node.js, then",
+            "restart the bridge (or fix the server in config.json).",
+        ])
+
     def start(self):
         with self.start_lock:
             if self.is_alive():
                 return
+            if self._needs_node_fallback():
+                self._apply_node_fallback()
             cmd = [self._resolve(self.command)] + [self._resolve(a) for a in self.args]
             # A bare .py command (relative paths resolve against the bridge dir)
             # is run with the SAME interpreter the bridge itself uses, so it works
@@ -802,7 +900,22 @@ class MCPClient:
                 script = cmd[0]
                 if not os.path.isabs(script):
                     script = os.path.join(HERE, script)
-                cmd = [sys.executable, script] + cmd[1:]
+                # Packaged app: sys.executable is the bridge binary itself, not a
+                # Python interpreter - a bare .py command must map to the sibling
+                # executable bundled next to the bridge (e.g. launch_studio_mcp.py
+                # -> launch_studio_mcp.exe).
+                bundled = _sibling_exe(os.path.splitext(os.path.basename(script))[0])
+                if bundled:
+                    cmd = [bundled] + cmd[1:]
+                elif getattr(sys, "frozen", False):
+                    self.start_error = (
+                        f"cannot run '{script}' from the packaged app: no bundled "
+                        f"executable for it. Edit config.json to point at a real command."
+                    )
+                    log(f"[{self.id}] {self.start_error}", "rd")
+                    raise FileNotFoundError(self.start_error)
+                else:
+                    cmd = [sys.executable, script] + cmd[1:]
             # On Windows, npx/npm/yarn/pnpm/bunx are .cmd shims that Popen can't
             # launch directly (WinError 2). Run them through cmd.exe so any
             # node-based MCP server "just works" from config.json.

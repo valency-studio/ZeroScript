@@ -205,12 +205,15 @@ Ekstensi saat ini dimuat menggunakan mode **Load unpacked**.
 
 ### Python
 
-Diperlukan:
+Diperlukan **hanya jika menjalankan dari source** (tanpa installer desktop):
 
 ```text
 Python 3.9+
 pip
 ```
+
+> 💡 Pengguna installer desktop (lihat [📦 Desktop App](#-desktop-app-windows--macos--linux))
+> **tidak perlu menginstal Python atau Node.js** — semuanya sudah di-bundle.
 
 ### Roblox Studio
 
@@ -225,6 +228,81 @@ Assistant Settings
 ```
 
 Pastikan **place sudah terbuka** sebelum menggunakan ZeroScript.
+
+---
+
+# 📦 Desktop App (Windows / macOS / Linux)
+
+> **Tanpa Python, tanpa pip, tanpa Node.js.**
+
+ZeroScript bisa di-package menjadi **aplikasi desktop** untuk ketiga OS. Python
+interpreter dan semua dependency sudah dibundle ke dalam executable — pengguna
+cukup **double-click** untuk menjalankan bridge.
+
+## Unduh & Install
+
+Setiap rilis (GitHub Releases) menyediakan:
+
+| OS       | Installer                     | Alternatif portable            |
+| -------- | ----------------------------- | ------------------------------ |
+| Windows  | `ZeroScript-Setup-<ver>.exe`  | `ZeroScript-portable-<ver>-windows.zip` |
+| macOS    | `ZeroScript-<ver>.dmg`        | `ZeroScript-portable-<ver>-macos.zip`    |
+| Linux    | `ZeroScript-<ver>-x86_64.AppImage` | —                         |
+
+1. Unduh installer untuk OS Anda.
+2. **Windows**: jalankan installer → selesai. **macOS**: drag `ZeroScript.app`
+   ke folder Applications. **Linux**: `chmod +x ZeroScript-*.AppImage`, lalu jalankan.
+3. Buka `ZeroScriptBridge` (atau shortcut **ZeroScript Bridge**). Bridge berjalan
+   di latar belakang — jangan ditutup selama digunakan.
+
+## Cara Pakai
+
+1. Jalankan **ZeroScript Bridge**.
+2. Muat ekstensi browser:
+   - Buka `chrome://extensions` (atau `edge://extensions`).
+   - Aktifkan **Developer mode**.
+   - Klik **Load unpacked** → pilih folder `zeroscript-extension` (sudah disertakan
+     di dalam folder instalasi).
+3. Buka Roblox Studio, pastikan place sudah terbuka dan aktifkan:
+   `Assistant Settings → MCP Servers → Enable "Studio as MCP server"`.
+4. Buka situs AI Chat favorit dan klik **Start Roblox Agent**.
+
+## Fallback Node.js (penting!)
+
+Config default Windows memakai MCP server custom (`@chrrxs/robloxstudio-mcp`)
+yang berjalan lewat `npx` — butuh Node.js. Kalau pengguna **belum punya Node.js**:
+
+1. Bridge mendeteksinya otomatis saat start.
+2. Muncul banner **ACTION NEEDED** di terminal/console bridge.
+3. Bridge **otomatis beralih ke MCP bawaan Roblox Studio** (`StudioMCP`), yang
+   tidak butuh Node sama sekali — cukup aktifkan *"Studio as MCP server"* di Studio.
+
+Mau kembali ke MCP custom? Install Node.js, lalu restart bridge.
+
+## Catatan per platform
+
+- **Windows**: SmartScreen kadang menampilkan peringatan untuk aplikasi tanpa
+  tanda tangan digital — klik **More info → Run anyway**.
+- **macOS**: build tanpa notarisasi Apple → klik kanan `ZeroScript.app` → **Open**
+  pada kali pertama (Gatekeeper).
+- **Linux**: Roblox Studio tidak berjalan native di Linux (butuh Wine); paket
+  Linux tetap berguna untuk MCP server add-on lain (Blender, dll).
+- **Log**: `logs/start.log` dan `logs/bridge_debug.log` di samping executable
+  (Linux AppImage: `~/.zeroscript/logs/`).
+
+## Build sendiri (dari source)
+
+Build dijalankan otomatis oleh CI (`.github/workflows/build-desktop.yml`) saat
+rilis dipublish, tapi bisa juga manual di masing-masing OS:
+
+```bash
+pip install -r packaging/requirements.txt
+python packaging/build.py          # opsional: --version 1.2.3
+```
+
+Hasilnya ada di `dist/packages/`. Windows juga butuh **NSIS** (`makensis`)
+untuk installer `.exe`; macOS butuh `hdiutil` (bawaan); Linux mendownload
+`appimagetool` otomatis.
 
 ---
 
