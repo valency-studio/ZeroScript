@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BetterScript Studio × Roblox Agent",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "BetterScript Studio — loop stability, ClickUp Brain2, done SFX, ForgeGUI/Make UI modes, advanced anim kits, macOS launcher.",
   "permissions": [
     "storage",

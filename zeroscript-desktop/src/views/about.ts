@@ -37,46 +37,96 @@ function fmtDate(iso: string | null): string {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
-// ── tiny markdown-lite renderer (release notes) ────────────────────────────
-function inline(s: string): string {
-  return s
-    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1") 
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)"\s&|<>^]+)\)/g, '<a class="rel-link" data-url="$2">$1</a>');
+// ── markdown-lite renderer for GitHub release notes ───────────────────────
+// Runs inline spans on raw text BEFORE escapeHtml, so special chars and
+// markup are handled in the right order.
+
+function inlineRaw(s: string): string {
+  // code spans first (protect from other rules)
+  s = s.replace(/`([^`]+)`/g, (_m, p1) => `<code>${escapeHtml(p1)}</code>`);
+  // bold
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  // italic (single * or _ not part of bold)
+  s = s.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
+  // images — drop, keep alt text
+  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
+  // links
+  s = s.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^)"\s&|<>^]+)\)/g,
+    '<a class="rel-link" data-url="$2">$1</a>',
+  );
+  return s;
 }
 
 function renderMarkdown(src: string): string {
-  const lines = escapeHtml(src).split("\n");
+  // Normalize line endings
+  const rawLines = src.replace(/\r\n/g, "\n").split("\n");
+  const lines: string[] = [];
+  
+  // Pre-process: remove empty lines BETWEEN list items to prevent breaking nested lists
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    if (!line.trim() && i > 0 && i < rawLines.length - 1) {
+      const prevTrimmed = rawLines[i-1].trimStart();
+      const nextTrimmed = rawLines[i+1].trimStart();
+      const isList = (s: string) => s.startsWith("* ") || s.startsWith("- ") || /^\d+\.\s/.test(s);
+      
+      if (isList(prevTrimmed) && isList(nextTrimmed)) {
+        continue; // Skip empty line between list items
+      }
+    }
+    lines.push(line);
+  }
+
   const out: string[] = [];
   let para: string[] = [];
-  let list: string[] | null = null;
+  let list: string[] = [];
+  let subList: string[] = [];
   let code: string[] | null = null;
 
   const flushPara = (): void => {
     if (para.length) {
-      out.push(`<p>${inline(para.join("<br>"))}</p>`);
+      out.push(`<p>${inlineRaw(para.join("<br>"))}</p>`);
       para = [];
     }
   };
+
   const flushList = (): void => {
-    if (list) {
-      out.push(`<ul>${list.map((l) => `<li>${inline(l)}</li>`).join("")}</ul>`);
-      list = null;
+    if (list.length) {
+      if (subList.length) {
+        const lastIdx = list.length - 1;
+        if (lastIdx >= 0) {
+          list[lastIdx] += `<ul>${subList.join("")}</ul>`;
+        } else {
+          out.push(`<ul>${subList.join("")}</ul>`);
+        }
+        subList = [];
+      }
+      out.push(`<ul>${list.map((l) => `<li>${l}</li>`).join("")}</ul>`);
+      list = [];
+    } else if (subList.length) {
+      out.push(`<ul>${subList.join("")}</ul>`);
+      subList = [];
     }
   };
+
   const flushCode = (): void => {
     if (code) {
-      out.push(`<pre><code>${code.join("\n")}</code></pre>`);
+      out.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
       code = null;
     }
   };
 
   for (const raw of lines) {
     const line = raw.trimEnd();
+
+    // code block fence
     if (code) {
-      if (line.trim().startsWith("```")) flushCode();
-      else code.push(line);
+      if (line.trim().startsWith("```")) {
+        flushCode();
+      } else {
+        code.push(line);
+      }
       continue;
     }
     if (line.trim().startsWith("```")) {
@@ -85,34 +135,82 @@ function renderMarkdown(src: string): string {
       code = [];
       continue;
     }
-    const head = line.match(/^(#{1,3})\s+(.*)$/);
+
+    // horizontal rule
+    if (line.trim() === "---" || line.trim() === "***") {
+      flushPara();
+      flushList();
+      out.push(`<hr/>`);
+      continue;
+    }
+
+    // headings (mapping # to appropriate HTML tags)
+    const head = line.match(/^(#{1,6})\s+(.*)$/);
     if (head) {
       flushPara();
       flushList();
-      out.push(`<h4>${inline(head[2])}</h4>`);
+      const level = head[1].length;
+      const tag = level === 1 ? "h2" : level === 2 ? "h3" : level === 3 ? "h4" : "h5";
+      out.push(`<${tag}>${inlineRaw(head[2])}</${tag}>`);
       continue;
     }
-    const bullet = line.match(/^[-*]\s+(.*)$/);
-    if (bullet) {
+
+    // Check for list items
+    const trimmedLine = line.trimStart();
+    const indent = line.length - trimmedLine.length;
+
+    const bullet = trimmedLine.match(/^[-*]\s+(.*)$/);
+    const ordered = trimmedLine.match(/^\d+\.\s+(.*)$/);
+    
+    if (bullet || ordered) {
       flushPara();
-      (list ||= []).push(bullet[1]);
+      const content = bullet ? bullet[1] : ordered![1];
+      const contentHtml = inlineRaw(content);
+
+      if (indent === 0) {
+        // Level 1 list
+        if (subList.length) {
+          const lastIdx = list.length - 1;
+          if (lastIdx >= 0) {
+            list[lastIdx] += `<ul>${subList.join("")}</ul>`;
+          } else {
+            out.push(`<ul>${subList.join("")}</ul>`);
+          }
+          subList = [];
+        }
+        list.push(contentHtml);
+      } else {
+        // Level 2+ (indented)
+        if (list.length === 0) {
+          list.push(contentHtml);
+        } else {
+          subList.push(`<li>${contentHtml}</li>`);
+        }
+      }
       continue;
     }
-    const quote = line.match(/^&gt;\s?(.*)$/);
+
+    // blockquote
+    const quote = line.match(/^>\s?(.*)$/);
     if (quote) {
       flushPara();
       flushList();
-      out.push(`<blockquote class="rel-quote">${inline(quote[1])}</blockquote>`);
+      out.push(`<blockquote class="rel-quote">${inlineRaw(quote[1])}</blockquote>`);
       continue;
     }
+
+    // blank line — close any open block
     if (!line.trim()) {
       flushPara();
       flushList();
       continue;
     }
+
+    // normal paragraph line
     flushList();
     para.push(line);
   }
+
   flushPara();
   flushList();
   flushCode();

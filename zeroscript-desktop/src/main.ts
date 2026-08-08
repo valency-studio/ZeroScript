@@ -6,6 +6,7 @@ import { BridgeClient } from "./bridge-ws";
 import { getAppInfo } from "./tauri";
 import { toast } from "./ui";
 import { UPDATE_CHECK_MS, updates } from "./update";
+import { setTheme } from "./views/settings";
 
 import { initAbout } from "./views/about";
 import { initDashboard } from "./views/dashboard";
@@ -14,6 +15,17 @@ import { initServers } from "./views/servers";
 import { initSettings } from "./views/settings";
 
 import "./styles.css";
+
+// ============================================================================
+// Apply saved theme before first paint
+// ============================================================================
+
+try {
+  const saved = localStorage.getItem("zeroscript-theme");
+  if (saved === "crimson") setTheme("crimson");
+} catch {
+  /* localStorage unavailable — stay default */
+}
 
 // ============================================================================
 // Bridge client

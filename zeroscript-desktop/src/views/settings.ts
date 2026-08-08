@@ -4,6 +4,23 @@ import { BridgeClient, Snapshot } from "../bridge-ws";
 import { getAppInfo, getDataDir, getSettings, openDataDir, setStartBridgeOnLaunch } from "../tauri";
 import { toast } from "../ui";
 
+type Theme = "cyan" | "crimson";
+
+const THEME_KEY = "zeroscript-theme";
+
+function currentTheme(): Theme {
+  return (localStorage.getItem(THEME_KEY) as Theme) || "cyan";
+}
+
+export function setTheme(theme: Theme): void {
+  if (theme === "crimson") {
+    document.documentElement.setAttribute("data-theme", "crimson");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  localStorage.setItem(THEME_KEY, theme);
+}
+
 let root: HTMLElement;
 
 const IC = {
@@ -39,6 +56,9 @@ export function initSettings(el: HTMLElement, client: BridgeClient): void {
 
     const autoToggle = root.querySelector<HTMLInputElement>("#autostartToggle");
     if (autoToggle) autoToggle.checked = autostart;
+
+    const themeToggle = root.querySelector<HTMLInputElement>("#themeToggle");
+    if (themeToggle) themeToggle.checked = currentTheme() === "crimson";
   }
 
   function render(): void {
@@ -90,6 +110,22 @@ export function initSettings(el: HTMLElement, client: BridgeClient): void {
 
       <div class="card">
         <div class="card-content">
+          <h3 class="card-title">Appearance</h3>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Crimson accent</div>
+              <div class="muted">Switch from electric crimson to electric cyan.</div>
+            </div>
+            <label class="switch">
+              <input id="themeToggle" type="checkbox" aria-label="Toggle crimson theme" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
           <h3 class="card-title">General</h3>
           <ul class="kv">
             <li><span>App version</span><b id="appVersion" class="mono">v—</b></li>
@@ -125,6 +161,11 @@ export function initSettings(el: HTMLElement, client: BridgeClient): void {
         toast("Could not change OS autostart setting", "err");
         updateStaticUI();
       });
+    });
+
+    root.querySelector<HTMLInputElement>("#themeToggle")!.addEventListener("change", (e) => {
+      const crimson = (e.target as HTMLInputElement).checked;
+      setTheme(crimson ? "crimson" : "cyan");
     });
 
     updateStaticUI();
